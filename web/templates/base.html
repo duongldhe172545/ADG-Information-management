@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ADG Dealer{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-logo">
+            <span class="logo-icon">◆</span>
+            <span class="logo-text">ADG Dealer</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/" class="{% if request.path == '/' %}active{% endif %}">
+                <span class="nav-icon">👥</span> Khách hàng</a></li>
+            <li><a href="/import" class="{% if request.path == '/import' %}active{% endif %}">
+                <span class="nav-icon">📥</span> Import Excel</a></li>
+            <li><a href="/review" class="{% if request.path == '/review' %}active{% endif %}">
+                <span class="nav-icon">🔍</span> Cần review</a></li>
+            <li><a href="/dashboard" class="{% if request.path == '/dashboard' %}active{% endif %}">
+                <span class="nav-icon">📊</span> Dashboard</a></li>
+            <li><a href="/log" class="{% if request.path == '/log' %}active{% endif %}">
+                <span class="nav-icon">📋</span> Change Log</a></li>
+            <li><a href="/deleted" class="{% if request.path == '/deleted' %}active{% endif %}">
+                <span class="nav-icon">🗑️</span> KH đã xóa</a></li>
+            <li><a href="/settings" class="{% if request.path == '/settings' %}active{% endif %}">
+                <span class="nav-icon">⚙️</span> Cấu hình</a></li>
+        </ul>
+    </nav>
+
+    <main class="main-content">
+        <header class="page-header">
+            <h1>{% block page_title %}{% endblock %}</h1>
+            <div class="header-actions">{% block header_actions %}{% endblock %}</div>
+        </header>
+        <div class="page-body {% block body_class %}{% endblock %}">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div id="modal" class="modal">
+            <div class="modal-header">
+                <h3 id="modal-title"></h3>
+                <button onclick="closeModal()" class="modal-close">&times;</button>
+            </div>
+            <div id="modal-body" class="modal-body"></div>
+            <div id="modal-footer" class="modal-footer"></div>
+        </div>
+    </div>
+
+    <script>
+    function showToast(msg, type='success') {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'toast ' + type;
+        setTimeout(() => t.className = 'toast hidden', 3000);
+    }
+    function openModal(title, bodyHtml, footerHtml) {
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal-body').innerHTML = bodyHtml;
+        document.getElementById('modal-footer').innerHTML = footerHtml || '';
+        document.getElementById('modal-overlay').classList.remove('hidden');
+    }
+    function closeModal() {
+        document.getElementById('modal-overlay').classList.add('hidden');
+    }
+    async function apiFetch(url, opts = {}) {
+        const res = await fetch(url, {
+            headers: {'Content-Type': 'application/json', ...opts.headers},
+            ...opts
+        });
+        return res.json();
+    }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

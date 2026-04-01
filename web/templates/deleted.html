@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}KH đã xóa — ADG Dealer{% endblock %}
+{% block page_title %}🗑️ Khách hàng đã xóa{% endblock %}
+
+{% block content %}
+<div class="table-container">
+    <table>
+        <thead><tr>
+            <th>Họ tên</th><th>Công ty</th><th>SĐT</th><th>Loại KH</th>
+            <th>Tỉnh</th><th>Tier</th><th>Thao tác</th>
+        </tr></thead>
+        <tbody id="del-body"></tbody>
+    </table>
+</div>
+<div class="pagination">
+    <span id="page-info"></span>
+    <div class="pagination-btns">
+        <button class="btn btn-sm" onclick="goPage(-1)">← Trước</button>
+        <button class="btn btn-sm" onclick="goPage(1)">Sau →</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let page = 1, totalPages = 1;
+
+async function loadDeleted() {
+    const d = await apiFetch(`/api/customers?deleted=1&page=${page}&per_page=50`);
+    totalPages = d.total_pages;
+    document.getElementById('page-info').textContent = `Trang ${d.page}/${totalPages} — ${d.total} KH`;
+
+    const body = document.getElementById('del-body');
+    if (!d.customers.length) {
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted)">Không có KH bị xóa</td></tr>';
+        return;
+    }
+
+    body.innerHTML = d.customers.map(c => `<tr>
+        <td>${c.ho_ten||''}</td>
+        <td>${c.ten_cong_ty||''}</td>
+        <td class="cell-sdt">${c.sdt||''}</td>
+        <td>${c.loai_kh||''}</td>
+        <td>${c.tinh||''}</td>
+        <td>${c.tier?`<span class="tier tier-${c.tier}">${c.tier}</span>`:'-'}</td>
+        <td><button class="btn btn-sm btn-success" onclick="restoreKH(${c.id})">↩ Khôi phục</button></td>
+    </tr>`).join('');
+}
+
+async function restoreKH(id) {
+    const res = await apiFetch(`/api/customers/${id}/restore`, {method:'POST'});
+    showToast(res.message);
+    loadDeleted();
+}
+
+function goPage(delta) { page = Math.max(1, Math.min(totalPages, page+delta)); loadDeleted(); }
+loadDeleted();
+</script>
+{% endblock %}

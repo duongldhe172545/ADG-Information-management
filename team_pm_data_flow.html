@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team PM — Quy Trình Thu Thập & Xử Lý Dữ Liệu Khách Hàng</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0e1a;
+            --bg-card: #111827;
+            --bg-card-hover: #1a2236;
+            --border: #1e293b;
+            --border-glow: rgba(99, 102, 241, 0.3);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-blue: #6366f1;
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --accent-purple: #a855f7;
+            --gradient-1: linear-gradient(135deg, #6366f1, #8b5cf6);
+            --gradient-2: linear-gradient(135deg, #06b6d4, #10b981);
+            --gradient-3: linear-gradient(135deg, #f59e0b, #f97316);
+            --gradient-4: linear-gradient(135deg, #f43f5e, #ec4899);
+            --gradient-5: linear-gradient(135deg, #10b981, #34d399);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Background animation */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(6, 182, 212, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(168, 85, 247, 0.04) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 40px 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 56px;
+        }
+
+        .header-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-radius: 100px;
+            font-size: 13px;
+            color: #818cf8;
+            font-weight: 500;
+            margin-bottom: 20px;
+            letter-spacing: 0.5px;
+        }
+
+        .header h1 {
+            font-size: 36px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #f1f5f9 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+            line-height: 1.2;
+        }
+
+        .header p {
+            font-size: 16px;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* Flow container */
+        .flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+        }
+
+        /* Step card */
+        .step {
+            width: 100%;
+            max-width: 560px;
+            position: relative;
+        }
+
+        .step-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 28px 32px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: default;
+        }
+
+        .step-card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-2px);
+            box-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.5),
+                        0 0 30px -10px var(--border-glow);
+        }
+
+        .step-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: 20px 20px 0 0;
+        }
+
+        .step:nth-child(1) .step-card::before { background: var(--gradient-1); }
+        .step:nth-child(3) .step-card::before { background: var(--gradient-3); }
+        .step:nth-child(5) .step-card::before { background: var(--gradient-2); }
+        .step:nth-child(7) .step-card::before { background: var(--gradient-5); }
+        .step:nth-child(9) .step-card::before { background: var(--gradient-4); }
+        .step:nth-child(11) .step-card::before { background: linear-gradient(135deg, #6366f1, #06b6d4); }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .step-number {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 700;
+            flex-shrink: 0;
+            color: white;
+        }
+
+        .step:nth-child(1) .step-number { background: var(--gradient-1); }
+        .step:nth-child(3) .step-number { background: var(--gradient-3); }
+        .step:nth-child(5) .step-number { background: var(--gradient-2); }
+        .step:nth-child(7) .step-number { background: var(--gradient-5); }
+        .step:nth-child(9) .step-number { background: var(--gradient-4); }
+        .step:nth-child(11) .step-number { background: linear-gradient(135deg, #6366f1, #06b6d4); }
+
+        .step-title-group {
+            flex: 1;
+        }
+
+        .step-role {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .step:nth-child(1) .step-role { color: #818cf8; }
+        .step:nth-child(3) .step-role { color: #fbbf24; }
+        .step:nth-child(5) .step-role { color: #34d399; }
+        .step:nth-child(7) .step-role { color: #34d399; }
+        .step:nth-child(9) .step-role { color: #fb7185; }
+        .step:nth-child(11) .step-role { color: #818cf8; }
+
+        .step-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .step-body {
+            padding-left: 60px;
+        }
+
+        .step-desc {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.7;
+            margin-bottom: 16px;
+        }
+
+        .step-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: var(--text-secondary);
+        }
+
+        .tag-icon {
+            font-size: 14px;
+        }
+
+        .tag.success { background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+        .tag.warning { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+        .tag.info { background: rgba(99, 102, 241, 0.08); border-color: rgba(99, 102, 241, 0.2); color: #a5b4fc; }
+        .tag.danger { background: rgba(244, 63, 94, 0.08); border-color: rgba(244, 63, 94, 0.2); color: #fda4af; }
+
+        /* Connector arrow */
+        .connector {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 72px;
+            position: relative;
+        }
+
+        .connector-line {
+            width: 2px;
+            flex: 1;
+            background: linear-gradient(180deg, var(--border) 0%, rgba(99, 102, 241, 0.4) 50%, var(--border) 100%);
+            position: relative;
+        }
+
+        .connector-line::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 7px solid transparent;
+            border-right: 7px solid transparent;
+            border-top: 8px solid rgba(99, 102, 241, 0.5);
+        }
+
+        .connector-label {
+            position: absolute;
+            top: 50%;
+            left: calc(50% + 20px);
+            transform: translateY(-50%);
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            padding: 3px 10px;
+            background: rgba(17, 24, 39, 0.9);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        /* Decision diamond (inline) */
+        .decision-box {
+            margin-top: 16px;
+            padding: 14px 18px;
+            background: rgba(245, 158, 11, 0.06);
+            border: 1px solid rgba(245, 158, 11, 0.15);
+            border-radius: 12px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .decision-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .decision-text {
+            font-size: 13px;
+            color: #fcd34d;
+            line-height: 1.6;
+        }
+
+        .decision-text strong {
+            color: #fde68a;
+        }
+
+        /* Stats bar */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin: 48px auto 0;
+            max-width: 560px;
+        }
+
+        .stat {
+            text-align: center;
+            padding: 20px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .stat:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-2px);
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .stat:nth-child(1) .stat-value { color: #818cf8; }
+        .stat:nth-child(2) .stat-value { color: #34d399; }
+        .stat:nth-child(3) .stat-value { color: #fbbf24; }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 48px;
+            padding-top: 32px;
+            border-top: 1px solid var(--border);
+        }
+
+        .footer p {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* Animate in */
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step, .connector {
+            animation: fadeSlideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
+        }
+
+        .step:nth-child(1) { animation-delay: 0.1s; }
+        .step:nth-child(2) { animation-delay: 0.2s; }
+        .step:nth-child(3) { animation-delay: 0.3s; }
+        .step:nth-child(4) { animation-delay: 0.4s; }
+        .step:nth-child(5) { animation-delay: 0.5s; }
+        .step:nth-child(6) { animation-delay: 0.6s; }
+        .step:nth-child(7) { animation-delay: 0.7s; }
+        .step:nth-child(8) { animation-delay: 0.8s; }
+        .step:nth-child(9) { animation-delay: 0.9s; }
+        .step:nth-child(10) { animation-delay: 1.0s; }
+        .step:nth-child(11) { animation-delay: 1.1s; }
+
+        /* Pulse animation on the dot */
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
+        }
+
+        .step-number {
+            animation: pulse 3s ease-in-out infinite;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .container { padding: 24px 16px; }
+            .header h1 { font-size: 26px; }
+            .step-card { padding: 20px; }
+            .step-body { padding-left: 0; }
+            .stats-bar { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-badge">
+                <span>📊</span>
+                <span>TEAM PM — DATA WORKFLOW</span>
+            </div>
+            <h1>Quy Trình Thu Thập & Xử Lý<br>Dữ Liệu Khách Hàng</h1>
+            <p>Luồng dữ liệu từ nhân viên thu thập → chuẩn hóa → import web → vận hành & báo cáo</p>
+        </div>
+
+        <!-- Flow -->
+        <div class="flow">
+            <!-- Step 1 -->
+            <div class="step">
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-number">1</div>
+                        <div class="step-title-group">
+                            <div class="step-role">Nhân viên hiện trường</div>
+                            <div class="step-title">Thu thập dữ liệu</div>
+                        </div>
+                    </div>
+                    <div class="step-body">
+                        <div class="step-desc">
+                            Nhân viên gặp khách hàng tại sự kiện (Vietbuild, hội chợ,...), thu thập thông tin qua form giấy hoặc điện thoại: <strong>họ tên, SĐT, sản phẩm quan tâm, nhóm khách hàng</strong>.
+                        </div>
+                        <div class="step-details">
+                            <span class="tag"><span class="tag-icon">📝</span> Form giấy</span>
+                            <span class="tag"><span class="tag-icon">📱</span> Ghi trên điện thoại</span>
+                            <span class="tag"><span class="tag-icon">📸</span> Chụp ảnh danh sách</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connector -->
+            <div class="connector">
+                <div class="connector-line"></div>
+                <span class="connector-label">data thô (chưa chuẩn hóa)</span>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="step">
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-number">2</div>
+                        <div class="step-title-group">
+                            <div class="step-role">Anh Cường — Trung gian</div>
+                            <div class="step-title">Chuẩn hóa dữ liệu</div>
+                        </div>
+                    </div>
+                    <div class="step-body">
+                        <div class="step-desc">
+                            Tổng hợp data từ nhiều nhân viên, đổ vào <strong>file Excel theo template chuẩn</strong>. Kiểm tra & sửa lỗi chính tả, format SĐT, loại bỏ dòng rác.
+                        </div>
+                        <div class="step-details">
+                            <span class="tag warning"><span class="tag-icon">⚡</span> Chuẩn hóa SĐT</span>
+                            <span class="tag warning"><span class="tag-icon">🧹</span> Loại dữ liệu rác</span>
+                            <span class="tag warning"><span class="tag-icon">📋</span> Theo template chuẩn</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connector -->
+            <div class="connector">
+                <div class="connector-line"></div>
+                <span class="connector-label">file Excel đã chuẩn hóa</span>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="step">
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-number">3</div>
+                        <div class="step-title-group">
+                            <div class="step-role">Dương — Admin hệ thống</div>
+                            <div class="step-title">Import vào Web</div>
+                        </div>
+                    </div>
+                    <div class="step-body">
+                        <div class="step-desc">
+                            Upload file Excel lên hệ thống web. Hệ thống tự động <strong>check trùng SĐT</strong>, validate dữ liệu, chuẩn hóa lại lần cuối trước khi lưu.
+                        </div>
+                        <div class="step-details">
+                            <span class="tag success"><span class="tag-icon">🔍</span> Check trùng SĐT</span>
+                            <span class="tag success"><span class="tag-icon">✅</span> Validate format</span>
+                            <span class="tag info"><span class="tag-icon">🔄</span> Chuẩn hóa lại</span>
+                        </div>
+                        <div class="decision-box">
+                            <span class="decision-icon">💡</span>
+                            <div class="decision-text">
+                                <strong>Nếu SĐT đã tồn tại:</strong> Hiển thị thông tin KH cũ → chọn <em>Cập nhật</em> hoặc <em>Bỏ qua</em>. Tránh trùng lặp như data Vietbuild (29.8% trùng).
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connector -->
+            <div class="connector">
+                <div class="connector-line"></div>
+                <span class="connector-label">data sạch → database</span>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="step">
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-number">4</div>
+                        <div class="step-title-group">
+                            <div class="step-role">Web App — Nguồn chính</div>
+                            <div class="step-title">Vận hành & Quản lý</div>
+                        </div>
+                    </div>
+                    <div class="step-body">
+                        <div class="step-desc">
+                            Web là <strong>Single Source of Truth</strong>. Tất cả thao tác CRUD, tìm kiếm, lọc, phân loại, chấm điểm đều thực hiện trên web.
+                        </div>
+                        <div class="step-details">
+                            <span class="tag info"><span class="tag-icon">🔎</span> Tìm kiếm</span>
+                            <span class="tag info"><span class="tag-icon">📊</span> Lọc & Filter</span>
+                            <span class="tag info"><span class="tag-icon">✏️</span> CRUD</span>
+                            <span class="tag info"><span class="tag-icon">⭐</span> Chấm điểm</span>
+                            <span class="tag info"><span class="tag-icon">📈</span> Dashboard</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connector -->
+            <div class="connector">
+                <div class="connector-line"></div>
+                <span class="connector-label">khi cần backup / báo cáo</span>
+            </div>
+
+            <!-- Step 5 -->
+            <div class="step">
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-number">5</div>
+                        <div class="step-title-group">
+                            <div class="step-role">Output</div>
+                            <div class="step-title">Export Excel</div>
+                        </div>
+                    </div>
+                    <div class="step-body">
+                        <div class="step-desc">
+                            Xuất file Excel từ web khi cần: <strong>backup định kỳ, gửi báo cáo cho sếp, chia sẻ data cho bộ phận khác</strong>. Excel luôn phản ánh data mới nhất từ web.
+                        </div>
+                        <div class="step-details">
+                            <span class="tag danger"><span class="tag-icon">📥</span> Backup định kỳ</span>
+                            <span class="tag danger"><span class="tag-icon">📊</span> Báo cáo cho sếp</span>
+                            <span class="tag danger"><span class="tag-icon">🔗</span> Chia sẻ data</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-bar">
+            <div class="stat">
+                <div class="stat-value">400</div>
+                <div class="stat-label">Tổng KH Vietbuild</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">281</div>
+                <div class="stat-label">SĐT Unique</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">29.8%</div>
+                <div class="stat-label">Tỷ lệ trùng</div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Team PM — ADG Dealer Classification System · Cập nhật 30/03/2026</p>
+        </div>
+    </div>
+</body>
+</html>

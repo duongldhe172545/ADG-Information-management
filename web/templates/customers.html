@@ -1,0 +1,503 @@
+{% extends "base.html" %}
+{% block title %}Khách hàng — ADG Dealer{% endblock %}
+{% block page_title %}Khách hàng{% endblock %}
+{% block body_class %}no-scroll{% endblock %}
+{% block header_actions %}
+<button class="btn" onclick="showFindReplace()">🔄 Tìm & Thay thế</button>
+<button class="btn" onclick="exportExcel()">📥 Export Excel</button>
+<button class="btn btn-primary" onclick="showAddForm()">+ Thêm KH</button>
+{% endblock %}
+
+{% block content %}
+<div class="search-bar">
+    <select id="search-col" style="min-width:140px">
+        <option value="">Tất cả cột</option>
+        <option value="ma_kh">Mã KH</option>
+        <option value="ho_ten">Họ tên</option>
+        <option value="ten_cong_ty">Công ty</option>
+        <option value="sdt">SĐT</option>
+        <option value="loai_kh">Loại KH</option>
+        <option value="tinh">Tỉnh</option>
+        <option value="xa">Xã</option>
+        <option value="dia_chi">Địa chỉ</option>
+        <option value="nguon">Nguồn</option>
+        <option value="khu_vuc">Khu vực</option>
+    </select>
+    <input type="text" id="search" placeholder="Tìm kiếm..." oninput="debounceLoad()">
+    <select id="f-loai" onchange="loadData()">
+        <option value="">Loại KH</option>
+    </select>
+    <select id="f-khu-vuc" onchange="loadData()">
+        <option value="">Khu vực</option>
+    </select>
+    <select id="f-tinh" onchange="loadData()">
+        <option value="">Tỉnh</option>
+    </select>
+    <select id="f-tier" onchange="loadData()">
+        <option value="">Tier</option>
+    </select>
+    <select id="f-nguon" onchange="loadData()">
+        <option value="">Nguồn</option>
+    </select>
+</div>
+
+<div id="batch-bar" class="search-bar"
+    style="display:none;background:var(--accent-bg);padding:10px;border-radius:var(--radius-sm);">
+    <span id="batch-count"></span>
+    <select id="batch-field">
+        <option value="">Chọn trường</option>
+        <option value="loai_kh">Loại KH</option>
+        <option value="khu_vuc">Khu vực</option>
+        <option value="nguon">Nguồn</option>
+        <option value="tinh">Tỉnh</option>
+    </select>
+    <input type="text" id="batch-value" placeholder="Giá trị mới">
+    <button class="btn btn-primary btn-sm" onclick="doBatchEdit()">Áp dụng</button>
+    <button class="btn btn-sm" onclick="clearBatch()">Hủy</button>
+</div>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr id="table-head"></tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+    </table>
+</div>
+
+<div class="pagination">
+    <div class="pagination-btns">
+        <button class="btn btn-sm" onclick="goPage(-1)">← Trước</button>
+        <span id="page-info"></span>
+        <button class="btn btn-sm" onclick="goPage(1)">Sau →</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const COLS = [
+        { key: '_check', label: '', w: 40 },
+        { key: 'ma_kh', label: 'Mã KH', w: 90 },
+        { key: 'loai_kh', label: 'Loại KH', dbKey: 'loai_kh', w: 110 },
+        { key: '_ten', label: 'Tên / Công ty', editable: false, w: 180 },
+        { key: 'sdt', label: 'SĐT', cls: 'cell-sdt', dbKey: 'sdt', w: 150 },
+        { key: 'tinh', label: 'Tỉnh', dbKey: 'tinh', w: 100 },
+        { key: 'xa', label: 'Xã', dbKey: 'xa', w: 110 },
+        { key: 'dia_chi', label: 'Địa chỉ', dbKey: 'dia_chi', w: 200 },
+        { key: 'nguon', label: 'Nguồn', dbKey: 'nguon', w: 120 },
+        { key: 'thong_tin_chi_tiet', label: 'Thông tin chi tiết', dbKey: 'thong_tin_chi_tiet', w: 250 },
+        { key: 'khu_vuc', label: 'Khu vực', dbKey: 'khu_vuc', w: 90 },
+        { key: 'so_kh_quay_lai', label: 'KH quay lại', dbKey: 'so_kh_quay_lai', w: 80 },
+        { key: 'biet_loi_nhuan', label: 'Biết LN?', dbKey: 'biet_loi_nhuan', w: 100 },
+        { key: 'doi_tho', label: 'Đội thợ', dbKey: 'doi_tho', w: 100 },
+        { key: 'chinh_sach_bh', label: 'Chính sách BH', dbKey: 'chinh_sach_bh', w: 120 },
+        { key: 'muc_quan_tam', label: 'Quan tâm', dbKey: 'muc_quan_tam', w: 100 },
+        { key: 'ban_kinh_km', label: 'Bán kính (km)', dbKey: 'ban_kinh_km', w: 80 },
+        { key: 'quan_ly_data', label: 'Quản lý data', dbKey: 'quan_ly_data', w: 120 },
+        { key: 'kiem_soat_mua_hang', label: 'Mua hàng', dbKey: 'kiem_soat_mua_hang', w: 120 },
+        { key: 'so_nguoi_gioi_thieu', label: 'Người GT', dbKey: 'so_nguoi_gioi_thieu', w: 70 },
+        { key: 'c1', label: 'C1', w: 30, cls: 'cell-score' },
+        { key: 'c2', label: 'C2', w: 30, cls: 'cell-score' },
+        { key: 'c3', label: 'C3', w: 30, cls: 'cell-score' },
+        { key: 'c4', label: 'C4', w: 30, cls: 'cell-score' },
+        { key: 'c5', label: 'C5', w: 30, cls: 'cell-score' },
+        { key: 'c6', label: 'C6', w: 30, cls: 'cell-score' },
+        { key: 'c7', label: 'C7', w: 30, cls: 'cell-score' },
+        { key: 'c8', label: 'C8', w: 30, cls: 'cell-score' },
+        { key: 'c9', label: 'C9', w: 30, cls: 'cell-score' },
+        { key: 'c_score', label: 'Điểm', w: 60 },
+        { key: 'tier', label: 'Tier', w: 55 },
+        { key: 'review_status', label: 'Review', w: 65 },
+    ];
+
+    let currentPage = 1, totalPages = 1, selectedIds = new Set(), lastOldData = {};
+    let debounceTimer, currentRows = [];
+
+    function debounceLoad() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { currentPage = 1; loadData(); }, 300);
+    }
+
+    async function loadFilterOptions() {
+        const opts = await apiFetch('/api/filter-options');
+        for (const [key, values] of Object.entries(opts)) {
+            const sel = document.getElementById('f-' + key.replace('_', '-').replace('loai_kh', 'loai').replace('khu_vuc', 'khu-vuc'));
+            if (!sel) continue;
+            const label = sel.options[0].text;
+            sel.innerHTML = `<option value="">${label}</option>` +
+                values.map(v => `<option value="${v}">${v}</option>`).join('');
+        }
+    }
+
+    async function loadData() {
+        const params = new URLSearchParams({
+            search: document.getElementById('search').value,
+            search_col: document.getElementById('search-col').value,
+            page: currentPage,
+            per_page: 50,
+            loai_kh: document.getElementById('f-loai').value,
+            khu_vuc: document.getElementById('f-khu-vuc').value,
+            tinh: document.getElementById('f-tinh').value,
+            tier: document.getElementById('f-tier').value,
+            nguon: document.getElementById('f-nguon').value,
+        });
+
+        const data = await apiFetch('/api/customers?' + params);
+        totalPages = data.total_pages;
+        currentRows = data.customers;
+        renderTable(data.customers);
+        document.getElementById('page-info').textContent =
+            `Trang ${data.page}/${data.total_pages} — ${data.total} KH`;
+    }
+
+    function renderTable(rows) {
+        // Header
+        const head = document.getElementById('table-head');
+        head.innerHTML = COLS.map(c => {
+            const wStyle = c.w ? ` style="min-width:${c.w}px"` : '';
+            return c.key === '_check' ? '<th><input type="checkbox" onchange="toggleAll(this)"></th>'
+                : `<th${wStyle}>${c.label}</th>`;
+        }).join('');
+
+        const body = document.getElementById('table-body');
+        if (!rows.length) {
+            body.innerHTML = '<tr><td colspan="' + COLS.length + '" style="text-align:center;padding:40px;color:var(--text-muted)">Không có dữ liệu</td></tr>';
+            return;
+        }
+
+        const startIdx = (currentPage - 1) * 50;
+        body.innerHTML = rows.map((r, idx) => {
+            const cells = COLS.map(c => {
+                if (c.key === '_check')
+                    return `<td><input type="checkbox" data-id="${r.id}" onchange="toggleSelect(${r.id}, this)" ${selectedIds.has(r.id) ? 'checked' : ''}></td>`;
+                if (c.key === '_stt')
+                    return `<td style="color:var(--text-muted)">${startIdx + idx + 1}</td>`;
+                if (c.key === '_ten')
+                    return `<td ondblclick="editCustomer(${r.id})" style="cursor:pointer;color:var(--accent);font-weight:500">${r.ho_ten || r.ten_cong_ty || ''}</td>`;
+                let val = r[c.key] ?? '';
+                if (c.key.match(/^c[1-9]$/)) {
+                    if (val === 0 || val === '0') val = `<span style="color:#cbd5e1">${val}</span>`;
+                }
+                else if (c.key === 'tier' && val)
+                    val = `<span class="tier tier-${val}">${val}</span>`;
+                else if (c.key === 'review_status')
+                    val = val === 'needs_review' ? '<span class="badge badge-review">🟡 Review</span>' : '<span class="badge badge-ok">✅</span>';
+                else if (c.key === 'c_score' && val !== '')
+                    val = `<strong>${val}</strong>`;
+                
+                // Add inline edit on dblclick for editable cells
+                const editAttr = c.dbKey ? `ondblclick="inlineEdit(this, ${r.id}, '${c.dbKey}')"` : '';
+                const wStyle = c.w ? `min-width:${c.w}px;` : '';
+                return `<td class="${c.cls || ''}" ${editAttr} style="${wStyle}">${val}</td>`;
+            }).join('');
+            return `<tr>${cells}</tr>`;
+        }).join('');
+    }
+
+    // ─── Inline Editing ─────────────────────────────────────────
+    function inlineEdit(td, id, field) {
+        if (td.classList.contains('editing')) return;
+        const oldVal = td.textContent.trim();
+        td.classList.add('editing');
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = oldVal;
+        td.textContent = '';
+        td.appendChild(input);
+        input.focus();
+        input.select();
+
+        async function save() {
+            const newVal = input.value.trim();
+            td.classList.remove('editing');
+            td.textContent = newVal || oldVal;
+            if (newVal !== oldVal) {
+                const data = {};
+                data[field] = newVal || null;
+                const res = await apiFetch(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+                showToast(`Đã cập nhật "${field}"`);
+                loadData();
+            }
+        }
+
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') save();
+            if (e.key === 'Escape') { td.classList.remove('editing'); td.textContent = oldVal; }
+        });
+        input.addEventListener('blur', save);
+    }
+
+    function toggleAll(cb) {
+        document.querySelectorAll('#table-body input[type=checkbox]').forEach(c => {
+            c.checked = cb.checked;
+            const id = parseInt(c.dataset.id);
+            cb.checked ? selectedIds.add(id) : selectedIds.delete(id);
+        });
+        updateBatchBar();
+    }
+
+    function toggleSelect(id, cb) {
+        cb.checked ? selectedIds.add(id) : selectedIds.delete(id);
+        updateBatchBar();
+    }
+
+    function updateBatchBar() {
+        const bar = document.getElementById('batch-bar');
+        if (selectedIds.size > 0) {
+            bar.style.display = 'flex';
+            document.getElementById('batch-count').textContent = `Đã chọn ${selectedIds.size} KH`;
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+
+    function clearBatch() {
+        selectedIds.clear();
+        updateBatchBar();
+        loadData();
+    }
+
+    async function doBatchEdit() {
+        const field = document.getElementById('batch-field').value;
+        const value = document.getElementById('batch-value').value;
+        if (!field) { showToast('Chọn trường cần sửa', 'error'); return; }
+        const res = await apiFetch('/api/customers/batch-edit', {
+            method: 'POST', body: JSON.stringify({ ids: [...selectedIds], field, value })
+        });
+        showToast(res.message);
+        clearBatch();
+        loadData();
+    }
+
+    // ─── Tab switching ──────────────────────────────────────────
+    window.switchTab = function(e, tabId) {
+        const contentList = e.target.closest('.tabs').querySelectorAll('.tab-content');
+        contentList.forEach(c => c.classList.remove('active'));
+        const btnList = e.target.closest('.tab-header').querySelectorAll('.tab-btn');
+        btnList.forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        e.target.classList.add('active');
+    };
+
+    async function editCustomer(id) {
+        let c = {};
+        if (id > 0) {
+            c = await apiFetch(`/api/customers/${id}`);
+            lastOldData[id] = {...c};
+        }
+
+        const t1_fields = [
+            {k:'ho_ten',l:'Họ tên'}, {k:'ten_cong_ty',l:'Công ty'},
+            {k:'sdt',l:'SĐT'}, {k:'khu_vuc',l:'Khu vực'},
+            {k:'tinh',l:'Tỉnh'}, {k:'xa',l:'Xã'},
+            {k:'loai_kh',l:'Loại KH'}, {k:'nguon',l:'Nguồn'},
+            {k:'dia_chi',l:'Địa chỉ',full:1}
+        ];
+        const t2_fields = [
+            {k:'so_kh_quay_lai',l:'C1. KH quay lại/năm',type:'number'},
+            {k:'biet_loi_nhuan',l:'C2. Biết lợi nhuận?',type:'select',opts:['','Không biết','Biết LN nhưng DSO>60 ngày','Biết LN>15% và DSO≤60 ngày','Khác']},
+            {k:'doi_tho',l:'C3. Đội thợ thi công',type:'select',opts:['','Không có đội','1-3 thợ rời theo vụ','≥2 thợ cơ hữu SLA ổn','Khác']},
+            {k:'chinh_sach_bh',l:'C4. Chính sách bảo hành',type:'select',opts:['','Đổ lỗi NCC','BH nhưng đòi hoàn NCC','Tự ký BH chịu CP','Khác']},
+            {k:'muc_quan_tam',l:'C5. Mức quan tâm hợp tác',type:'select',opts:['','Không muốn đổi','Quan tâm chưa rõ lợi ích','Có nỗi đau cụ thể muốn giải','Khác']},
+            {k:'ban_kinh_km',l:'C6. Bán kính KH gọi đến (km)',type:'number'},
+            {k:'quan_ly_data',l:'C7. Quản lý data KH',type:'select',opts:['','Không ghi chép','Ghi Zalo/Excel rải rác','Có hệ thống xuất được lịch sử','Khác']},
+            {k:'kiem_soat_mua_hang',l:'C8. Kiểm soát mua hàng',type:'select',opts:['','Theo chỉ định NCC','Có 2-3 NCC lựa chọn','Chủ động thương lượng giá','Khác']},
+            {k:'so_nguoi_gioi_thieu',l:'C9. Số người giới thiệu',type:'number'}
+        ];
+
+        function makeGroup(f) {
+            const cls = f.full ? 'form-group full' : 'form-group';
+            let input;
+            if (f.type === 'select') {
+                input = `<select id="e-${f.k}">${f.opts.map(o => `<option ${c[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;
+            } else if (f.type === 'number') {
+                input = `<input type="number" id="e-${f.k}" value="${c[f.k]??''}">`;
+            } else {
+                input = `<input type="text" id="e-${f.k}" value="${c[f.k]??''}">`;
+            }
+            return `<div class="${cls}"><label>${f.l}</label>${input}</div>`;
+        }
+
+        let html = ``;
+        if (id > 0) {
+            const t = c.tier || '?';
+            const s = c.c_score ?? 0;
+            let badge = c.c_score !== null ?
+                `<span class="tier tier-${t}" style="font-size:13px; padding:4px 12px;">Tier ${t}</span>
+                 <span class="badge badge-ok" style="font-size:13px; padding:4px 12px; margin-left:6px">${s} Điểm</span>` :
+                `<span class="badge badge-review" style="font-size:13px; padding:4px 12px;">Chưa chấm điểm</span>`;
+            html += `
+            <div style="margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between;">
+                <h3 style="margin:0; font-size:17px">${c.ho_ten || c.ten_cong_ty || 'Khách Hàng'}</h3>
+                <div>${badge}</div>
+            </div>`;
+        }
+
+        html += `
+        <div class="tabs">
+            <div class="tab-header">
+                <button class="tab-btn active" onclick="switchTab(event, 'tab-chung')">Thông tin chung</button>
+                <button class="tab-btn" onclick="switchTab(event, 'tab-diem')">Chấm điểm AI</button>
+                <button class="tab-btn" onclick="switchTab(event, 'tab-note')">Ghi chú Sale</button>
+            </div>
+            <div id="tab-chung" class="tab-content active">
+                <div class="form-grid">${t1_fields.map(makeGroup).join('')}</div>
+            </div>
+            <div id="tab-diem" class="tab-content">
+                <div class="form-grid">${t2_fields.map(makeGroup).join('')}</div>
+                ${c.c_score != null ? `
+                <div style="margin-top:16px; font-size:12px; color:var(--text-secondary); padding:10px; background:var(--bg-hover); border-radius:var(--radius-sm);">
+                    <strong>Chi tiết:</strong> C1=${c.c1} | C2=${c.c2} | C3=${c.c3} | C4=${c.c4} | C5=${c.c5} | C6=${c.c6} | C7=${c.c7} | C8=${c.c8} | C9=${c.c9}
+                </div>` : ''}
+            </div>
+            <div id="tab-note" class="tab-content">
+                <div class="form-group full">
+                    <label>Thông Tin Chi Tiết (Log làm việc)</label>
+                    <textarea id="e-thong_tin_chi_tiet" rows="10" style="width:100%; resize:vertical; font-size:13px">${c.thong_tin_chi_tiet ?? ''}</textarea>
+                </div>
+            </div>
+        </div>`;
+
+        const footer = id > 0 ? `
+            <button class="btn btn-danger" onclick="deleteCustomer(${id})">Xóa</button>
+            <button class="btn" onclick="undoCustomer(${id})">↩ Hoàn tác</button>
+            <button class="btn btn-primary" onclick="saveCustomer(${id})">💾 Lưu</button>` :
+            `<button class="btn btn-primary" onclick="saveNewCustomer()">💾 Lưu</button>`;
+
+        openModal(id > 0 ? `Chi Tiết KH #${id}` : `Thêm KH mới`, html, footer);
+    }
+
+    async function saveCustomer(id) {
+        const fields = ['ho_ten','ten_cong_ty','sdt','loai_kh','tinh','xa','dia_chi',
+            'nguon','khu_vuc','thong_tin_chi_tiet','so_kh_quay_lai','biet_loi_nhuan','doi_tho',
+            'chinh_sach_bh','muc_quan_tam','ban_kinh_km','quan_ly_data','kiem_soat_mua_hang','so_nguoi_gioi_thieu'];
+        const data = {};
+        fields.forEach(f => {
+            const el = document.getElementById('e-' + f);
+            if (el) data[f] = el.value || null;
+        });
+        ['so_kh_quay_lai','ban_kinh_km','so_nguoi_gioi_thieu'].forEach(f => {
+            if (data[f]) data[f] = parseInt(data[f]) || null;
+        });
+
+        const res = await apiFetch(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+        showToast(res.message || 'Đã lưu');
+        closeModal();
+        loadData();
+    }
+
+    async function deleteCustomer(id) {
+        if (!confirm('Xóa KH này?')) return;
+        const res = await apiFetch(`/api/customers/${id}`, { method: 'DELETE' });
+        showToast(res.message);
+        closeModal();
+        loadData();
+    }
+
+    async function undoCustomer(id) {
+        const old = lastOldData[id];
+        if (!old) { showToast('Không có dữ liệu để hoàn tác', 'error'); return; }
+        const res = await apiFetch(`/api/customers/${id}/undo`, {
+            method: 'POST', body: JSON.stringify({ old_data: old })
+        });
+        showToast(res.message);
+        closeModal();
+        loadData();
+    }
+
+    function showAddForm() {
+        editCustomer(0);
+    }
+
+    async function saveNewCustomer() {
+        const fields = ['ho_ten','ten_cong_ty','sdt','loai_kh','tinh','xa','dia_chi',
+            'nguon','khu_vuc','thong_tin_chi_tiet','so_kh_quay_lai','biet_loi_nhuan','doi_tho',
+            'chinh_sach_bh','muc_quan_tam','ban_kinh_km','quan_ly_data','kiem_soat_mua_hang','so_nguoi_gioi_thieu'];
+        const data = {};
+        fields.forEach(f => {
+            const el = document.getElementById('e-' + f);
+            if (el) data[f] = el.value || null;
+        });
+        ['so_kh_quay_lai','ban_kinh_km','so_nguoi_gioi_thieu'].forEach(f => {
+            if (data[f]) data[f] = parseInt(data[f]) || null;
+        });
+
+        const res = await apiFetch('/api/customers', { method: 'POST', body: JSON.stringify(data) });
+        showToast(res.message || 'Đã thêm');
+        closeModal();
+        loadData();
+    }
+
+    async function exportExcel() {
+        window.location.href = '/api/export?' + new URLSearchParams({
+            loai_kh: document.getElementById('f-loai').value,
+            khu_vuc: document.getElementById('f-khu-vuc').value,
+            tinh: document.getElementById('f-tinh').value,
+            tier: document.getElementById('f-tier').value,
+            nguon: document.getElementById('f-nguon').value,
+        });
+    }
+
+    function goPage(delta) {
+        currentPage = Math.max(1, Math.min(totalPages, currentPage + delta));
+        loadData();
+    }
+
+    // ─── Find & Replace ──────────────────────────────────────
+    function showFindReplace() {
+        const fields = [
+            {k:'loai_kh', l:'Loại KH'}, {k:'tinh', l:'Tỉnh'}, {k:'xa', l:'Xã'},
+            {k:'khu_vuc', l:'Khu vực'}, {k:'nguon', l:'Nguồn'}, {k:'dia_chi', l:'Địa chỉ'},
+            {k:'ho_ten', l:'Họ tên'}, {k:'ten_cong_ty', l:'Công ty'}, {k:'sdt', l:'SĐT'},
+            {k:'biet_loi_nhuan', l:'Biết lợi nhuận?'}, {k:'doi_tho', l:'Đội thợ'},
+            {k:'chinh_sach_bh', l:'Chính sách BH'}, {k:'muc_quan_tam', l:'Mức quan tâm'},
+            {k:'quan_ly_data', l:'Quản lý data'}, {k:'kiem_soat_mua_hang', l:'Mua hàng'},
+        ];
+        const html = `
+        <p style="margin-bottom:16px;color:var(--text-secondary);font-size:13px">
+            Thay thế hàng loạt giá trị trong một cột.<br>
+            VD: Đổi tất cả "Hải Dương" → "Hải Phòng" trong cột Tỉnh.
+        </p>
+        <div class="form-grid">
+            <div class="form-group full">
+                <label>Chọn cột</label>
+                <select id="fr-field">
+                    ${fields.map(f => `<option value="${f.k}">${f.l}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Giá trị CŨ (tìm)</label>
+                <input type="text" id="fr-old" placeholder="VD: Hải Dương">
+            </div>
+            <div class="form-group">
+                <label>Giá trị MỚI (thay thế)</label>
+                <input type="text" id="fr-new" placeholder="VD: Hải Phòng">
+            </div>
+        </div>`;
+        const footer = `<button class="btn" onclick="closeModal()">Hủy</button>
+            <button class="btn btn-primary" onclick="doFindReplace()">🔄 Thay thế tất cả</button>`;
+        openModal('🔄 Tìm & Thay thế hàng loạt', html, footer);
+    }
+
+    async function doFindReplace() {
+        const field = document.getElementById('fr-field').value;
+        const oldVal = document.getElementById('fr-old').value.trim();
+        const newVal = document.getElementById('fr-new').value.trim();
+        if (!oldVal) { showToast('Nhập giá trị cần tìm', 'error'); return; }
+        const fieldLabel = document.getElementById('fr-field').selectedOptions[0].text;
+        if (!confirm(`Thay tất cả "${oldVal}" → "${newVal}" trong cột "${fieldLabel}"?\n\nThao tác này không thể hoàn tác!`))
+            return;
+        const res = await apiFetch('/api/customers/find-replace', {
+            method: 'POST', body: JSON.stringify({ field, old_value: oldVal, new_value: newVal })
+        });
+        showToast(res.message || res.error, res.error ? 'error' : 'success');
+        closeModal();
+        loadData();
+    }
+
+    // Init
+    loadFilterOptions();
+    loadData();
+</script>
+{% endblock %}

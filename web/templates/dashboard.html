@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — ADG Dealer{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="cards" id="stat-cards"></div>
+<div class="chart-grid">
+    <div class="chart-box"><h3>Phân bổ Tier</h3><canvas id="chart-tier"></canvas></div>
+    <div class="chart-box"><h3>Top 10 Tỉnh</h3><canvas id="chart-province"></canvas></div>
+    <div class="chart-box"><h3>Theo Loại KH</h3><canvas id="chart-type"></canvas></div>
+    <div class="chart-box"><h3>Theo Nguồn</h3><canvas id="chart-source"></canvas></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TIER_COLORS = {A:'#34d399',B:'#60a5fa',C:'#fbbf24',D:'#f87171'};
+const COLORS = ['#6366f1','#06b6d4','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b','#a3e635'];
+
+async function loadDashboard() {
+    const d = await apiFetch('/api/dashboard');
+
+    // Stat cards
+    document.getElementById('stat-cards').innerHTML = `
+        <div class="card"><div class="card-value" style="color:var(--accent)">${d.total}</div><div class="card-label">Tổng KH</div></div>
+        <div class="card"><div class="card-value" style="color:var(--success)">${d.has_scoring}</div><div class="card-label">Có scoring</div></div>
+        <div class="card"><div class="card-value" style="color:var(--warning)">${d.needs_review}</div><div class="card-label">Cần review</div></div>
+        <div class="card"><div class="card-value">${d.by_region.length}</div><div class="card-label">Khu vực</div></div>
+    `;
+
+    // Tier pie
+    if (d.by_tier.length) {
+        new Chart(document.getElementById('chart-tier'), {
+            type:'doughnut',
+            data:{
+                labels:d.by_tier.map(t=>'Tier '+t.tier),
+                datasets:[{data:d.by_tier.map(t=>t.cnt),backgroundColor:d.by_tier.map(t=>TIER_COLORS[t.tier]||'#666')}]
+            },
+            options:{plugins:{legend:{position:'bottom',labels:{color:'#9aa0b0'}}}}
+        });
+    }
+
+    // Province bar
+    if (d.top_provinces.length) {
+        new Chart(document.getElementById('chart-province'), {
+            type:'bar',
+            data:{
+                labels:d.top_provinces.map(p=>p.tinh),
+                datasets:[{label:'Số KH',data:d.top_provinces.map(p=>p.cnt),backgroundColor:'#5b6abf'}]
+            },
+            options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#9aa0b0'}},y:{ticks:{color:'#9aa0b0'}}}}
+        });
+    }
+
+    // By type
+    if (d.by_type.length) {
+        new Chart(document.getElementById('chart-type'), {
+            type:'doughnut',
+            data:{
+                labels:d.by_type.map(t=>t.loai_kh),
+                datasets:[{data:d.by_type.map(t=>t.cnt),backgroundColor:COLORS.slice(0,d.by_type.length)}]
+            },
+            options:{plugins:{legend:{position:'bottom',labels:{color:'#9aa0b0',font:{size:11}}}}}
+        });
+    }
+
+    // By source
+    if (d.by_source.length) {
+        new Chart(document.getElementById('chart-source'), {
+            type:'bar',
+            data:{
+                labels:d.by_source.map(s=>s.nguon),
+                datasets:[{label:'Số KH',data:d.by_source.map(s=>s.cnt),backgroundColor:'#06b6d4'}]
+            },
+            options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#9aa0b0'}},y:{ticks:{color:'#9aa0b0'}}}}
+        });
+    }
+}
+
+loadDashboard();
+</script>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}KH cần review — ADG Dealer{% endblock %}
+{% block page_title %}🟡 Khách hàng cần review{% endblock %}
+
+{% block content %}
+<p style="color:var(--text-secondary);margin-bottom:16px;font-size:13px">
+    Danh sách KH có ≥1 tiêu chí chọn "Khác" — cần Dương review hoặc dùng AI chấm điểm.
+</p>
+<div class="table-container">
+    <table>
+        <thead><tr>
+            <th>Họ tên</th><th>SĐT</th><th>Loại KH</th>
+            <th>C2</th><th>C3</th><th>C4</th><th>C5</th><th>C7</th><th>C8</th>
+            <th>TTCT</th><th>c_score</th><th>Tier</th><th>Thao tác</th>
+        </tr></thead>
+        <tbody id="review-body"></tbody>
+    </table>
+</div>
+<div class="pagination">
+    <span id="page-info"></span>
+    <div class="pagination-btns">
+        <button class="btn btn-sm" onclick="goPage(-1)">← Trước</button>
+        <button class="btn btn-sm" onclick="goPage(1)">Sau →</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let page = 1, totalPages = 1;
+const DROPDOWN_FIELDS = {
+    biet_loi_nhuan:'C2', doi_tho:'C3', chinh_sach_bh:'C4',
+    muc_quan_tam:'C5', quan_ly_data:'C7', kiem_soat_mua_hang:'C8'
+};
+
+async function loadReview() {
+    const d = await apiFetch(`/api/customers?review_status=needs_review&page=${page}&per_page=30`);
+    totalPages = d.total_pages;
+    document.getElementById('page-info').textContent = `Trang ${d.page}/${totalPages} — ${d.total} KH`;
+
+    const body = document.getElementById('review-body');
+    if (!d.customers.length) {
+        body.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--success)">✅ Không có KH nào cần review!</td></tr>';
+        return;
+    }
+
+    body.innerHTML = d.customers.map(c => {
+        const khacFields = [];
+        for (const [field, label] of Object.entries(DROPDOWN_FIELDS)) {
+            if (c[field] === 'Khác') khacFields.push({field, label});
+        }
+
+        const khacCells = Object.entries(DROPDOWN_FIELDS).map(([field, label]) =>
+            `<td>${c[field]==='Khác'?'<span class="badge badge-review">Khác</span>':(c[field]||'-')}</td>`
+        ).join('');
+
+        const actions = khacFields.map(f =>
+            `<button class="btn btn-sm" onclick="aiScore(${c.id},'${f.field}','${c.thong_tin_chi_tiet||''}')">🤖 AI ${f.label}</button>`
+        ).join(' ') +
+        ` <button class="btn btn-sm btn-success" onclick="markReviewed(${c.id})">✅ Xong</button>`;
+
+        return `<tr>
+            <td>${c.ho_ten||''}</td>
+            <td class="cell-sdt">${c.sdt||''}</td>
+            <td>${c.loai_kh||''}</td>
+            ${khacCells}
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${c.thong_tin_chi_tiet||''}</td>
+            <td><strong>${c.c_score??'-'}</strong></td>
+            <td>${c.tier?`<span class="tier tier-${c.tier}">${c.tier}</span>`:'-'}</td>
+            <td style="white-space:normal">${actions}</td>
+        </tr>`;
+    }).join('');
+}
+
+async function aiScore(id, field, text) {
+    if (!text) { showToast('Không có Thông Tin Chi Tiết để AI phân tích', 'error'); return; }
+    showToast('Đang gọi AI...', 'success');
+    const res = await apiFetch(`/api/scoring/ai/${id}`, {
+        method:'POST', body:JSON.stringify({field, text})
+    });
+    if (res.error) { showToast(res.error, 'error'); return; }
+    showToast(`AI chấm: ${res.score}đ — ${res.explanation}`);
+    loadReview();
+}
+
+async function markReviewed(id) {
+    await apiFetch(`/api/customers/${id}`, {
+        method:'PUT', body:JSON.stringify({review_status:'ok'})
+    });
+    showToast('Đã đánh dấu review xong');
+    loadReview();
+}
+
+function goPage(delta) { page = Math.max(1, Math.min(totalPages, page+delta)); loadReview(); }
+loadReview();
+</script>
+{% endblock %}

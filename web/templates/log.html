@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Change Log — ADG Dealer{% endblock %}
+{% block page_title %}📋 Change Log{% endblock %}
+
+{% block content %}
+<div class="search-bar">
+    <select id="f-action" onchange="page=1;loadLog()">
+        <option value="">Tất cả hành động</option>
+        <option value="Import">Import</option>
+        <option value="Sửa KH">Sửa KH</option>
+        <option value="Thêm KH tay">Thêm KH tay</option>
+        <option value="Xóa KH">Xóa KH</option>
+        <option value="Khôi phục KH">Khôi phục KH</option>
+        <option value="Đổi trọng số">Đổi trọng số</option>
+        <option value="AI chấm điểm">AI chấm điểm</option>
+        <option value="Sửa điểm AI">Sửa điểm AI</option>
+        <option value="Batch edit">Batch edit</option>
+        <option value="Undo">Undo</option>
+    </select>
+</div>
+
+<div class="table-container">
+    <table>
+        <thead><tr>
+            <th>STT</th><th style="min-width:160px">Thời gian</th><th>Loại hành động</th>
+            <th>Chi tiết</th><th>Người thao tác</th>
+        </tr></thead>
+        <tbody id="log-body"></tbody>
+    </table>
+</div>
+<div class="pagination">
+    <span id="page-info"></span>
+    <div class="pagination-btns">
+        <button class="btn btn-sm" onclick="goPage(-1)">← Trước</button>
+        <button class="btn btn-sm" onclick="goPage(1)">Sau →</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let page = 1, totalPages = 1;
+
+async function loadLog() {
+    const actionType = document.getElementById('f-action').value;
+    const d = await apiFetch(`/api/log?page=${page}&per_page=50&action_type=${actionType}`);
+    totalPages = d.total_pages;
+    document.getElementById('page-info').textContent = `Trang ${d.page}/${totalPages} — ${d.total} log`;
+
+    const body = document.getElementById('log-body');
+    if (!d.logs.length) {
+        body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted)">Chưa có log</td></tr>';
+        return;
+    }
+
+    body.innerHTML = d.logs.map((l,i) => `<tr>
+        <td>${l.id}</td>
+        <td style="white-space:nowrap">${l.timestamp||''}</td>
+        <td><span class="badge" style="background:var(--accent-bg);color:var(--accent-light)">${l.action_type}</span></td>
+        <td style="max-width:500px;white-space:normal;font-size:12px">${l.detail||''}</td>
+        <td>${l.operator||''}</td>
+    </tr>`).join('');
+}
+
+function goPage(delta) { page = Math.max(1, Math.min(totalPages, page+delta)); loadLog(); }
+loadLog();
+</script>
+{% endblock %}

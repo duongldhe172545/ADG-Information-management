@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Import Excel — ADG Dealer{% endblock %}
+{% block page_title %}Import Excel{% endblock %}
+
+{% block content %}
+<div id="step-upload">
+    <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="upload-icon">📂</div>
+        <div class="upload-text">Kéo thả file Excel vào đây hoặc click để chọn</div>
+        <div class="upload-text" style="font-size:12px;margin-top:8px;color:var(--text-muted)">.xlsx — Template 19 cột</div>
+        <input type="file" id="file-input" accept=".xlsx,.xls" hidden onchange="uploadFile(this.files[0])">
+    </div>
+</div>
+
+<div id="step-preview" style="display:none">
+    <div class="cards">
+        <div class="card"><div class="card-value" id="p-total">0</div><div class="card-label">Tổng dòng</div></div>
+        <div class="card"><div class="card-value" id="p-dupes" style="color:var(--warning)">0</div><div class="card-label">Trùng SĐT</div></div>
+    </div>
+
+    <h3 style="margin-bottom:12px">Preview (10 dòng đầu)</h3>
+    <div class="table-container" style="max-height:300px;overflow:auto">
+        <table><thead><tr id="preview-head"></tr></thead><tbody id="preview-body"></tbody></table>
+    </div>
+
+    <div id="dup-section" style="margin-top:20px;display:none">
+        <h3 style="margin-bottom:12px;color:var(--warning)">⚠️ Mẫu dòng trùng</h3>
+        <div id="dup-list"></div>
+    </div>
+
+    <div style="margin-top:24px;display:flex;gap:8px;align-items:center">
+        <span style="color:var(--text-secondary);font-size:13px">Khi trùng SĐT:</span>
+        <select id="merge-strategy">
+            <option value="smart">Smart merge (giữ cũ nếu mới trống)</option>
+            <option value="skip">Bỏ qua trùng</option>
+            <option value="overwrite">Đè toàn bộ</option>
+        </select>
+        <button class="btn btn-primary" onclick="confirmImport()">✅ Import</button>
+        <button class="btn" onclick="resetImport()">Hủy</button>
+    </div>
+</div>
+
+<div id="step-result" style="display:none">
+    <div class="cards">
+        <div class="card"><div class="card-value" id="r-inserted" style="color:var(--success)">0</div><div class="card-label">Thêm mới</div></div>
+        <div class="card"><div class="card-value" id="r-updated" style="color:var(--accent)">0</div><div class="card-label">Cập nhật</div></div>
+        <div class="card"><div class="card-value" id="r-skipped" style="color:var(--text-muted)">0</div><div class="card-label">Bỏ qua</div></div>
+    </div>
+    <button class="btn btn-primary" onclick="window.location='/'">Xem danh sách KH →</button>
+    <button class="btn" onclick="resetImport()">Import thêm</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let previewData = null;
+
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); uploadFile(e.dataTransfer.files[0]); });
+
+async function uploadFile(file) {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+
+    const res = await fetch('/api/import/preview', {method:'POST', body:fd});
+    const data = await res.json();
+    if (data.errors) { showToast(data.errors.join(', '), 'error'); return; }
+
+    previewData = data;
+    document.getElementById('step-upload').style.display = 'none';
+    document.getElementById('step-preview').style.display = 'block';
+
+    document.getElementById('p-total').textContent = data.total_rows;
+    document.getElementById('p-dupes').textContent = data.duplicate_count;
+
+    // Preview table
+    if (data.preview.length) {
+        const ORDERED_KEYS = [
+            {k:'loai_kh', l:'Loại KH'}, {k:'ten_cong_ty', l:'Công ty'},
+            {k:'ho_ten', l:'Họ tên'}, {k:'sdt', l:'SĐT'},
+            {k:'tinh', l:'Tỉnh'}, {k:'xa', l:'Xã'},
+            {k:'dia_chi', l:'Địa chỉ'}, {k:'nguon', l:'Nguồn'},
+            {k:'thong_tin_chi_tiet', l:'Thông tin chi tiết'}, {k:'khu_vuc', l:'Khu vực'},
+            {k:'so_kh_quay_lai', l:'KH quay lại'}, {k:'biet_loi_nhuan', l:'Biết LN?'},
+            {k:'doi_tho', l:'Đội thợ'}, {k:'chinh_sach_bh', l:'Chính sách BH'},
+            {k:'muc_quan_tam', l:'Quan tâm'}, {k:'ban_kinh_km', l:'Bán kính (km)'},
+            {k:'quan_ly_data', l:'Quản lý data'}, {k:'kiem_soat_mua_hang', l:'Kiểm soát mua hàng'},
+            {k:'so_nguoi_gioi_thieu', l:'Người được giới thiệu'}
+        ];
+
+        // Only render columns that exist in the first preview row
+        const availableKeys = ORDERED_KEYS.filter(ok => data.preview[0].hasOwnProperty(ok.k));
+
+        document.getElementById('preview-head').innerHTML = availableKeys.map(ok => `<th style="white-space:nowrap">${ok.l}</th>`).join('');
+        document.getElementById('preview-body').innerHTML = data.preview.map(r =>
+            '<tr>' + availableKeys.map(ok => `<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${r[ok.k]??''}">${r[ok.k]??''}</td>`).join('') + '</tr>'
+        ).join('');
+    }
+
+    // Duplicates
+    if (data.duplicate_count > 0) {
+        document.getElementById('dup-section').style.display = 'block';
+        document.getElementById('dup-list').innerHTML = data.duplicates_sample.map(d =>
+            `<div class="card" style="margin-bottom:8px">
+                <div style="color:var(--warning);font-size:13px;margin-bottom:6px">📞 ${d.new.sdt||'N/A'}</div>
+                <div style="font-size:12px;color:var(--text-secondary)">
+                    <strong>Mới:</strong> ${d.new.ho_ten||''} — ${d.new.loai_kh||''}<br>
+                    <strong>Cũ:</strong> ${d.existing[0]?.ho_ten||''} — ${d.existing[0]?.loai_kh||''}
+                </div>
+            </div>`
+        ).join('');
+    }
+}
+
+async function confirmImport() {
+    if (!previewData) return;
+    const btn = document.querySelector('button[onclick="confirmImport()"]');
+    const originalText = btn.innerHTML;
+    
+    // UI feedback for long processing
+    btn.innerHTML = '⏳ Đang xử lý... (Vui lòng đợi vài phút)';
+    btn.disabled = true;
+    document.getElementById('merge-strategy').disabled = true;
+
+    try {
+        const res = await apiFetch('/api/import/confirm', {
+            method: 'POST',
+            body: JSON.stringify({
+                filepath: previewData.filepath,
+                merge_strategy: document.getElementById('merge-strategy').value
+            })
+        });
+
+        if (res.error || res.errors) {
+            showToast(res.error || (res.errors ? res.errors.join(', ') : 'Lỗi không xác định'), 'error');
+            return;
+        }
+
+        document.getElementById('step-preview').style.display = 'none';
+        document.getElementById('step-result').style.display = 'block';
+        document.getElementById('r-inserted').textContent = res.inserted || 0;
+        document.getElementById('r-updated').textContent = res.updated || 0;
+        document.getElementById('r-skipped').textContent = res.skipped || 0;
+        showToast(res.message || 'Import thành công!', 'success');
+    } catch (err) {
+        showToast('Lỗi hoặc quá giờ (timeout). Vui lòng tải lại trang sau ít phút.', 'error');
+        console.error(err);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        document.getElementById('merge-strategy').disabled = false;
+    }
+}
+
+function resetImport() {
+    previewData = null;
+    document.getElementById('step-upload').style.display = 'block';
+    document.getElementById('step-preview').style.display = 'none';
+    document.getElementById('step-result').style.display = 'none';
+    document.getElementById('file-input').value = '';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Cấu hình — ADG Dealer{% endblock %}
+{% block page_title %}⚙️ Cấu hình trọng số{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:500px">
+    <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">
+        Sửa trọng số 9 tiêu chí. Tổng phải = 100%. Khi lưu sẽ tự tính lại c_score + tier cho toàn bộ KH.
+    </p>
+    <div id="weights-form"></div>
+    <div class="weight-total">
+        Tổng: <span id="total-weight">100%</span>
+    </div>
+    <button class="btn btn-primary" onclick="saveWeights()">💾 Lưu trọng số</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let weightsData = {};
+
+async function loadWeights() {
+    weightsData = await apiFetch('/api/scoring/weights');
+    const form = document.getElementById('weights-form');
+    form.innerHTML = Object.entries(weightsData).map(([cid, info]) => `
+        <div class="weight-row">
+            <label><strong>${cid}</strong> — ${info.name}</label>
+            <input type="number" id="w-${cid}" value="${(info.weight*100).toFixed(0)}"
+                   step="1" min="0" max="100" oninput="updateTotal()">
+            <span>%</span>
+        </div>
+    `).join('');
+    updateTotal();
+}
+
+function updateTotal() {
+    let sum = 0;
+    for (const cid of Object.keys(weightsData)) {
+        sum += parseFloat(document.getElementById('w-'+cid).value) || 0;
+    }
+    const el = document.getElementById('total-weight');
+    el.textContent = sum + '%';
+    el.style.color = Math.abs(sum - 100) < 0.5 ? 'var(--success)' : 'var(--danger)';
+}
+
+async function saveWeights() {
+    const data = {};
+    let sum = 0;
+    for (const cid of Object.keys(weightsData)) {
+        const val = parseFloat(document.getElementById('w-'+cid).value) || 0;
+        data[cid] = val / 100;
+        sum += val;
+    }
+    if (Math.abs(sum - 100) > 0.5) {
+        showToast(`Tổng = ${sum}%, phải = 100%`, 'error');
+        return;
+    }
+    const res = await apiFetch('/api/scoring/weights', {method:'PUT', body:JSON.stringify(data)});
+    showToast(res.message || res.error);
+    if (!res.error) loadWeights();
+}
+
+loadWeights();
+</script>
+{% endblock %}
