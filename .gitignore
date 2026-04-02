@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+
+# Data files (created at runtime)
+web/data/
+web/uploads/
+web/exports/
+
+# Excel data (large files)
+*.xlsx
+*.xlsm
+*.csv
+
+# Docs
+*.docx
+
+# Test/debug scripts
+test_*.py
+fix_*.py
+check_*.py
+clean_*.py
+copy_*.py
+create_*.py
+patch_*.py
+reset_db.py
+restore_mapping.py
+final_wipe.py
+wipe.py
+analyze_*.py
+update_ui.py
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
