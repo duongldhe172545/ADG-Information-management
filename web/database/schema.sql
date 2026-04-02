@@ -1,14 +1,16 @@
 -- Customers table: 19 original columns + scoring + metadata
 CREATE TABLE IF NOT EXISTS customers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ma_kh TEXT UNIQUE,
 
     -- 10 cột gốc từ file anh Cường
     loai_kh TEXT,
+    loai_kh_goc TEXT,  -- giá trị gốc từ Excel (không bị ghi đè khi phân loại)
     ten_cong_ty TEXT,
     ho_ten TEXT,
     sdt TEXT,
     tinh TEXT,
-    quan_huyen TEXT,
+    xa TEXT,
     dia_chi TEXT,
     nguon TEXT,
     thong_tin_chi_tiet TEXT,
@@ -87,3 +89,26 @@ INSERT OR IGNORE INTO scoring_weights (c_id, name, weight) VALUES
     ('C7', 'Kỷ luật data', 0.08),
     ('C8', 'Chuỗi cung ứng', 0.04),
     ('C9', 'Ảnh hưởng cộng đồng', 0.03);
+
+-- Keyword mapping for auto-classifying loai_kh
+CREATE TABLE IF NOT EXISTS loai_kh_mapping (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    keyword TEXT NOT NULL,
+    nhom_kh TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Nhóm KH (mở rộng được)
+CREATE TABLE IF NOT EXISTS nhom_kh_groups (
+    key TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    display_order INTEGER DEFAULT 0
+);
+
+INSERT OR IGNORE INTO nhom_kh_groups (key, label, display_order) VALUES
+    ('to_doi_thi_cong', 'Tổ đội thi công', 1),
+    ('xuong_san_xuat', 'Xưởng sản xuất', 2),
+    ('showroom', 'Showroom / Nội thất', 3),
+    ('dai_ly_phan_phoi', 'Đại lý phân phối', 4),
+    ('cua_hang_vlxd', 'Cửa hàng VLXD', 5),
+    ('chua_xac_dinh', 'Chưa xác định', 6);

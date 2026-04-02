@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Phân loại KH — ADG Dealer{% endblock %}
+{% block page_title %}🏷️ Phân loại Khách hàng{% endblock %}
+{% block header_actions %}
+<button class="btn" onclick="previewClassify()">👁️ Xem trước</button>
+<button class="btn btn-primary" onclick="applyClassify()">🚀 Áp dụng phân loại</button>
+{% endblock %}
+
+{% block content %}
+<p style="color:var(--text-secondary);margin-bottom:16px;font-size:13px">
+    Quản lý keyword mapping để tự động phân loại Loại KH. Hiện có <strong id="group-count">6</strong> nhóm.
+</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <!-- LEFT: Add form + Keyword list -->
+    <div>
+        <div class="card" style="padding:16px;margin-bottom:16px">
+            <h3 style="margin:0 0 12px">Thêm keyword</h3>
+            <div style="display:flex;gap:8px;align-items:end">
+                <div style="flex:1">
+                    <label style="font-size:12px;color:var(--text-secondary)">Keyword</label>
+                    <input type="text" id="new-keyword" placeholder="VD: cửa cuốn, đại lý..." style="width:100%">
+                </div>
+                <div style="flex:1">
+                    <label style="font-size:12px;color:var(--text-secondary)">Nhóm KH</label>
+                    <select id="new-nhom" style="width:100%"></select>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="addMapping()">+ Thêm</button>
+            </div>
+        </div>
+
+        <div class="card" style="padding:16px;margin-bottom:16px">
+            <h3 style="margin:0 0 12px">➕ Thêm nhóm KH mới</h3>
+            <div style="display:flex;gap:8px;align-items:end">
+                <div style="flex:1">
+                    <label style="font-size:12px;color:var(--text-secondary)">Key (viết thường)</label>
+                    <input type="text" id="new-nhom-key" placeholder="VD: nha_may" style="width:100%">
+                </div>
+                <div style="flex:1">
+                    <label style="font-size:12px;color:var(--text-secondary)">Tên hiển thị</label>
+                    <input type="text" id="new-nhom-label" placeholder="VD: Nhà máy" style="width:100%">
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="addNhom()">+ Thêm nhóm</button>
+            </div>
+        </div>
+
+        <div class="card" style="padding:16px">
+            <h3 style="margin:0 0 12px">Keyword hiện có <span id="mapping-count" style="color:var(--text-secondary);font-weight:normal"></span></h3>
+            <div id="mapping-list"></div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Preview -->
+    <div>
+        <div class="card" style="padding:16px">
+            <h3 style="margin:0 0 12px">Xem trước phân loại</h3>
+            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">
+                Bấm "👁️ Xem trước" để kiểm tra kết quả mapping trước khi áp dụng.
+            </p>
+            <div id="preview-list"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let nhomLabels = {};
+
+async function loadMappings() {
+    const d = await apiFetch('/api/mapping');
+    nhomLabels = d.nhom_labels;
+    document.getElementById('group-count').textContent = Object.keys(nhomLabels).length;
+
+    // Populate nhom dropdown
+    const sel = document.getElementById('new-nhom');
+    sel.innerHTML = Object.entries(nhomLabels).map(([k,v]) =>
+        `<option value="${k}">${v}</option>`
+    ).join('');
+
+    // Group by nhom
+    const groups = {};
+    for (const m of d.mappings) {
+        if (!groups[m.nhom_kh]) groups[m.nhom_kh] = [];
+        groups[m.nhom_kh].push(m);
+    }
+
+    document.getElementById('mapping-count').textContent = `(${d.mappings.length})`;
+
+    const html = Object.entries(nhomLabels).map(([nhomKey, nhomLabel]) => {
+        const items = groups[nhomKey] || [];
+        const tags = items.map(m =>
+            `<span class="mapping-tag nhom-${nhomKey}">
+                ${m.keyword}
+                <a href="#" onclick="event.preventDefault();deleteMapping(${m.id})" class="tag-delete">×</a>
+            </span>`
+        ).join('');
+        return `<div style="margin-bottom:12px">
+            <div style="font-weight:600;font-size:13px;margin-bottom:4px;color:var(--text)">${nhomLabel}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">${tags || '<span style="color:var(--text-muted);font-size:12px">Chưa có keyword</span>'}</div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('mapping-list').innerHTML = html;
+}
+
+async function addMapping() {
+    const keyword = document.getElementById('new-keyword').value.trim();
+    const nhom = document.getElementById('new-nhom').value;
+    if (!keyword) { showToast('Nhập keyword', 'error'); return; }
+
+    const res = await apiFetch('/api/mapping', {
+        method: 'POST', body: JSON.stringify({ keyword, nhom_kh: nhom })
+    });
+    if (res.error) { showToast(res.error, 'error'); return; }
+    showToast(res.message);
+    document.getElementById('new-keyword').value = '';
+    loadMappings();
+}
+
+async function deleteMapping(id) {
+    const res = await apiFetch(`/api/mapping/${id}`, { method: 'DELETE' });
+    showToast(res.message);
+    loadMappings();
+}
+
+async function previewClassify() {
+    const data = await apiFetch('/api/mapping/preview');
+    const matched = data.filter(d => d.matched);
+    const unmatched = data.filter(d => !d.matched);
+
+    let html = `<div style="margin-bottom:12px;font-size:13px">
+        <span style="color:var(--success);font-weight:600">✅ Khớp: ${matched.length} loại</span> · 
+        <span style="color:var(--warning);font-weight:600">⚠️ Chưa khớp: ${unmatched.length} loại</span>
+    </div>`;
+
+    html += '<div class="table-container" style="max-height:500px;overflow-y:auto"><table><thead><tr>';
+    html += '<th>Loại KH gốc</th><th>SL</th><th>→ Nhóm</th><th>Keyword</th>';
+    html += '</tr></thead><tbody>';
+
+    for (const r of data) {
+        const cls = r.already_clean ? 'color:var(--text-muted)' : (r.matched ? '' : 'color:var(--warning);font-weight:600');
+        html += `<tr>
+            <td style="${cls}">${r.loai_kh}</td>
+            <td style="text-align:center">${r.cnt}</td>
+            <td>${r.nhom ? `<span class="badge" style="background:var(--accent-bg);color:var(--accent-light)">${r.nhom}</span>` : '<span style="color:var(--warning)">—</span>'}</td>
+            <td style="font-size:12px;color:var(--text-secondary)">${r.keyword||''}</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div>';
+
+    document.getElementById('preview-list').innerHTML = html;
+}
+
+async function applyClassify() {
+    if (!confirm('Bạn chắc chắn muốn áp dụng phân loại? Thao tác này sẽ thay đổi cột "Loại KH" của tất cả KH khớp keyword.')) return;
+    const res = await apiFetch('/api/mapping/classify', { method: 'POST' });
+    if (res.error) { showToast(res.error, 'error'); return; }
+    showToast(res.message);
+    previewClassify();
+}
+
+async function addNhom() {
+    const key = document.getElementById('new-nhom-key').value.trim();
+    const label = document.getElementById('new-nhom-label').value.trim();
+    if (!key || !label) { showToast('Nhập key và tên nhóm', 'error'); return; }
+
+    const res = await apiFetch('/api/nhom-kh', {
+        method: 'POST', body: JSON.stringify({ key, label })
+    });
+    if (res.error) { showToast(res.error, 'error'); return; }
+    showToast(res.message);
+    document.getElementById('new-nhom-key').value = '';
+    document.getElementById('new-nhom-label').value = '';
+    loadMappings();
+}
+
+loadMappings();
+</script>
+
+<style>
+.mapping-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    background: var(--surface-hover); color: var(--text);
+}
+.mapping-tag .tag-delete {
+    color: var(--text-muted); text-decoration: none; font-size: 14px; font-weight: 700;
+    margin-left: 2px;
+}
+.mapping-tag .tag-delete:hover { color: var(--danger); }
+.nhom-xuong_san_xuat { background: #fce4d6; color: #943c0d; }
+.nhom-showroom { background: #e2efda; color: #375623; }
+.nhom-dai_ly_phan_phoi { background: #ddebf7; color: #1f4e79; }
+.nhom-to_doi_thi_cong { background: #fff2cc; color: #7f6000; }
+.nhom-cua_hang_vlxd { background: #f2dcdb; color: #823535; }
+.nhom-chua_xac_dinh { background: #e0e0e0; color: #424242; }
+</style>
+{% endblock %}

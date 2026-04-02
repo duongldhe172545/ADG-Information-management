@@ -378,13 +378,197 @@ def api_filter_options():
     """Get unique values for filter dropdowns."""
     conn = get_db()
     options = {}
-    for col in ['loai_kh', 'khu_vuc', 'tinh', 'tier', 'nguon']:
+    for col in ['khu_vuc', 'tinh', 'tier', 'nguon']:
         rows = conn.execute(
             f"SELECT DISTINCT {col} FROM customers WHERE is_deleted = 0 AND {col} IS NOT NULL AND {col} != '' ORDER BY {col}"
         ).fetchall()
         options[col] = [r[0] for r in rows]
+    
+    # Dynamic loai_kh from nhom_kh_groups table
+    options['loai_kh'] = [r['label'] for r in conn.execute('SELECT label FROM nhom_kh_groups ORDER BY display_order').fetchall()]
+    
     conn.close()
     return jsonify(options)
+
+
+# ─── Page: Keyword Mapping ──────────────────────────────────────
+
+@app.route('/mapping')
+def mapping_page():
+    return render_template('mapping.html')
+
+
+# ─── API: Keyword Mapping ───────────────────────────────────────
+
+def get_nhom_labels():
+    """Load nhom_kh groups from DB dynamically."""
+    conn = get_db()
+    rows = conn.execute('SELECT key, label FROM nhom_kh_groups ORDER BY display_order').fetchall()
+    conn.close()
+    return {r['key']: r['label'] for r in rows}
+
+
+@app.route('/api/mapping', methods=['GET'])
+def api_get_mappings():
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM loai_kh_mapping ORDER BY nhom_kh, keyword').fetchall()
+    conn.close()
+    nhom_labels = get_nhom_labels()
+    return jsonify({
+        'mappings': [dict(r) for r in rows],
+        'nhom_labels': nhom_labels,
+    })
+
+
+@app.route('/api/mapping', methods=['POST'])
+def api_add_mapping():
+    data = request.json
+    keyword = (data.get('keyword', '') or '').strip()
+    nhom_kh = data.get('nhom_kh', '')
+    nhom_labels = get_nhom_labels()
+    if not keyword or nhom_kh not in nhom_labels:
+        return jsonify({'error': 'Thiếu keyword hoặc nhóm KH không hợp lệ'}), 400
+
+    conn = get_db()
+    existing = conn.execute('SELECT id FROM loai_kh_mapping WHERE keyword = ?', (keyword,)).fetchone()
+    if existing:
+        conn.close()
+        return jsonify({'error': f'Keyword "{keyword}" đã tồn tại'}), 400
+
+    conn.execute('INSERT INTO loai_kh_mapping (keyword, nhom_kh) VALUES (?, ?)', (keyword, nhom_kh))
+    conn.commit()
+    conn.close()
+    log_service.add_log('Thêm mapping', f'Keyword: "{keyword}" → {nhom_labels[nhom_kh]}')
+    return jsonify({'message': f'Đã thêm: "{keyword}" → {nhom_labels[nhom_kh]}'})
+
+
+@app.route('/api/mapping/<int:mid>', methods=['DELETE'])
+def api_delete_mapping(mid):
+    conn = get_db()
+    row = conn.execute('SELECT keyword, nhom_kh FROM loai_kh_mapping WHERE id = ?', (mid,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'error': 'Không tìm thấy'}), 404
+    conn.execute('DELETE FROM loai_kh_mapping WHERE id = ?', (mid,))
+    conn.commit()
+    conn.close()
+    log_service.add_log('Xóa mapping', f'Keyword: "{row["keyword"]}" (nhóm: {row["nhom_kh"]})')
+    return jsonify({'message': 'Đã xóa'})
+
+
+@app.route('/api/nhom-kh', methods=['POST'])
+def api_add_nhom():
+    """Add a new customer group."""
+    data = request.json
+    key = (data.get('key', '') or '').strip().lower().replace(' ', '_')
+    label = (data.get('label', '') or '').strip()
+    if not key or not label:
+        return jsonify({'error': 'Cần nhập key và tên nhóm'}), 400
+
+    conn = get_db()
+    existing = conn.execute('SELECT key FROM nhom_kh_groups WHERE key = ?', (key,)).fetchone()
+    if existing:
+        conn.close()
+        return jsonify({'error': f'Nhóm "{key}" đã tồn tại'}), 400
+
+    max_order = conn.execute('SELECT MAX(display_order) FROM nhom_kh_groups').fetchone()[0] or 0
+    conn.execute('INSERT INTO nhom_kh_groups (key, label, display_order) VALUES (?, ?, ?)',
+                 (key, label, max_order + 1))
+    conn.commit()
+    conn.close()
+    log_service.add_log('Thêm nhóm KH', f'Nhóm mới: {label} ({key})')
+    return jsonify({'message': f'Đã thêm nhóm: {label}'})
+
+
+@app.route('/api/mapping/classify', methods=['POST'])
+def api_classify_all():
+    """Apply keyword mapping to unclassified customers.
+    
+    Only matches keywords against loai_kh_goc.
+    Empty loai_kh_goc → 'Chưa xác định'.
+    No match found → 'Chưa xác định'.
+    """
+    conn = get_db()
+    nhom_labels = get_nhom_labels()
+    standard_labels = set(nhom_labels.values())
+    mappings = conn.execute('SELECT keyword, nhom_kh FROM loai_kh_mapping ORDER BY LENGTH(keyword) DESC').fetchall()
+
+    customers = conn.execute(
+        "SELECT id, loai_kh, loai_kh_goc FROM customers WHERE is_deleted = 0"
+    ).fetchall()
+
+    updated = 0
+    for cust in customers:
+        old_val = cust['loai_kh'] or ''
+        # Skip if already classified to a standard group
+        if old_val in standard_labels:
+            continue
+
+        goc = (cust['loai_kh_goc'] or '').strip()
+        matched_nhom = None
+
+        # Only match keywords against loai_kh_goc
+        if goc:
+            goc_lower = goc.lower()
+            for mapping in mappings:
+                if mapping['keyword'].lower() in goc_lower:
+                    matched_nhom = nhom_labels.get(mapping['nhom_kh'])
+                    break
+
+        # Empty or no match → 'Chưa xác định'
+        new_val = matched_nhom or 'Chưa xác định'
+        if new_val != old_val:
+            conn.execute('UPDATE customers SET loai_kh = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                        (new_val, cust['id']))
+            updated += 1
+
+    conn.commit()
+    conn.close()
+
+    log_service.add_log('Phân loại KH', f'Đã phân loại {updated} KH dựa trên {len(mappings)} keyword')
+    return jsonify({'message': f'Đã phân loại {updated} KH', 'updated': updated})
+
+
+@app.route('/api/mapping/preview', methods=['GET'])
+def api_classify_preview():
+    """Preview classification without applying."""
+    conn = get_db()
+    nhom_labels = get_nhom_labels()
+    standard_labels = set(nhom_labels.values())
+    mappings = conn.execute('SELECT keyword, nhom_kh FROM loai_kh_mapping ORDER BY LENGTH(keyword) DESC').fetchall()
+
+    types = conn.execute(
+        """SELECT loai_kh, COUNT(*) as cnt FROM customers 
+           WHERE is_deleted = 0 AND loai_kh IS NOT NULL AND loai_kh != '' 
+           GROUP BY loai_kh ORDER BY cnt DESC"""
+    ).fetchall()
+    conn.close()
+
+    results = []
+    for t in types:
+        old_val = t['loai_kh']
+        if old_val in standard_labels:
+            results.append({'loai_kh': old_val, 'cnt': t['cnt'], 'nhom': old_val, 'matched': True, 'already_clean': True})
+            continue
+
+        matched_nhom = None
+        matched_keyword = None
+        old_lower = old_val.lower()
+        for mapping in mappings:
+            if mapping['keyword'].lower() in old_lower:
+                matched_nhom = nhom_labels.get(mapping['nhom_kh'])
+                matched_keyword = mapping['keyword']
+                break
+
+        results.append({
+            'loai_kh': old_val,
+            'cnt': t['cnt'],
+            'nhom': matched_nhom or 'Chưa xác định',
+            'keyword': matched_keyword or '',
+            'matched': matched_nhom is not None,
+        })
+
+    return jsonify(results)
 
 
 # ─── Init ────────────────────────────────────────────────────────

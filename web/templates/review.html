@@ -7,11 +7,24 @@
     Danh sách KH có ≥1 tiêu chí chọn "Khác" — cần Dương review hoặc dùng AI chấm điểm.
 </p>
 <div class="table-container">
-    <table>
+    <table id="review-table">
         <thead><tr>
-            <th>Họ tên</th><th>SĐT</th><th>Loại KH</th>
-            <th>C2</th><th>C3</th><th>C4</th><th>C5</th><th>C7</th><th>C8</th>
-            <th>TTCT</th><th>c_score</th><th>Tier</th><th>Thao tác</th>
+            <th class="sticky-col col-1">Họ tên / Công ty</th>
+            <th class="sticky-col col-2">SĐT</th>
+            <th class="sticky-col col-3">Loại KH</th>
+            <th style="min-width:120px">C1</th>
+            <th style="min-width:120px">C2</th>
+            <th style="min-width:120px">C3</th>
+            <th style="min-width:120px">C4</th>
+            <th style="min-width:120px">C5</th>
+            <th style="min-width:120px">C6</th>
+            <th style="min-width:120px">C7</th>
+            <th style="min-width:120px">C8</th>
+            <th style="min-width:120px">C9</th>
+            <th style="min-width:220px">TTCT</th>
+            <th style="min-width:80px">c_score</th>
+            <th style="min-width:80px">Tier</th>
+            <th style="min-width:140px">Thao tác</th>
         </tr></thead>
         <tbody id="review-body"></tbody>
     </table>
@@ -28,9 +41,11 @@
 {% block scripts %}
 <script>
 let page = 1, totalPages = 1;
+let customersData = [];
+let lastOldData = {};
 const DROPDOWN_FIELDS = {
-    biet_loi_nhuan:'C2', doi_tho:'C3', chinh_sach_bh:'C4',
-    muc_quan_tam:'C5', quan_ly_data:'C7', kiem_soat_mua_hang:'C8'
+    so_kh_quay_lai: 'C1', biet_loi_nhuan:'C2', doi_tho:'C3', chinh_sach_bh:'C4',
+    muc_quan_tam:'C5', ban_kinh_km:'C6', quan_ly_data:'C7', kiem_soat_mua_hang:'C8', so_nguoi_gioi_thieu:'C9'
 };
 
 async function loadReview() {
@@ -40,29 +55,34 @@ async function loadReview() {
 
     const body = document.getElementById('review-body');
     if (!d.customers.length) {
-        body.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--success)">✅ Không có KH nào cần review!</td></tr>';
+        body.innerHTML = '<tr><td colspan="16" style="text-align:center;padding:40px;color:var(--success)">✅ Không có KH nào cần review!</td></tr>';
         return;
     }
-
+    customersData = d.customers;
     body.innerHTML = d.customers.map(c => {
         const khacFields = [];
         for (const [field, label] of Object.entries(DROPDOWN_FIELDS)) {
             if (c[field] === 'Khác') khacFields.push({field, label});
         }
 
-        const khacCells = Object.entries(DROPDOWN_FIELDS).map(([field, label]) =>
-            `<td>${c[field]==='Khác'?'<span class="badge badge-review">Khác</span>':(c[field]||'-')}</td>`
-        ).join('');
+        const khacCells = Object.entries(DROPDOWN_FIELDS).map(([field, label]) => {
+            const scoreKey = label.toLowerCase();
+            const scoreVal = c[scoreKey] !== null && c[scoreKey] !== undefined ? `${c[scoreKey]}đ` : '?đ';
+            const textVal = c[field] === 'Khác' ? '<span class="badge badge-review">Khác</span>' : (c[field]||'-');
+            return `<td style="vertical-align:top; min-width:140px">
+                <div style="font-size:11px; font-weight:700; color:var(--primary); margin-bottom:4px; padding-bottom:4px; border-bottom:1px dashed var(--border)">
+                    Điểm: ${scoreVal}
+                </div>
+                <div style="font-size:13px; line-height:1.4; color:var(--text-secondary)">${textVal}</div>
+            </td>`;
+        }).join('');
 
-        const actions = khacFields.map(f =>
-            `<button class="btn btn-sm" onclick="aiScore(${c.id},'${f.field}','${c.thong_tin_chi_tiet||''}')">🤖 AI ${f.label}</button>`
-        ).join(' ') +
-        ` <button class="btn btn-sm btn-success" onclick="markReviewed(${c.id})">✅ Xong</button>`;
+        const actions = `<button class="btn btn-sm btn-outline" onclick="editCustomer(${c.id})">✏️ Sửa</button>`;
 
         return `<tr>
-            <td>${c.ho_ten||''}</td>
-            <td class="cell-sdt">${c.sdt||''}</td>
-            <td>${c.loai_kh||''}</td>
+            <td class="sticky-col col-1">${c.ho_ten || c.ten_cong_ty || ''}</td>
+            <td class="sticky-col col-2 cell-sdt">${formatPhone(c.sdt)}</td>
+            <td class="sticky-col col-3">${c.loai_kh||''}</td>
             ${khacCells}
             <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${c.thong_tin_chi_tiet||''}</td>
             <td><strong>${c.c_score??'-'}</strong></td>
@@ -91,7 +111,184 @@ async function markReviewed(id) {
     loadReview();
 }
 
-function goPage(delta) { page = Math.max(1, Math.min(totalPages, page+delta)); loadReview(); }
+function editCustomer(id) {
+        let c = {};
+        if (id > 0) {
+            c = customersData.find(x => x.id === id);
+            lastOldData[id] = {...c};
+        }
+
+        const t1_fields = [
+            {k:'ho_ten',l:'Họ tên'}, {k:'ten_cong_ty',l:'Công ty'},
+            {k:'sdt',l:'SĐT'}, {k:'khu_vuc',l:'Khu vực'},
+            {k:'tinh',l:'Tỉnh'}, {k:'xa',l:'Xã'},
+            {k:'loai_kh',l:'Loại KH'}, {k:'nguon',l:'Nguồn'},
+            {k:'dia_chi',l:'Địa chỉ',full:1}
+        ];
+        const t2_fields = [
+            {k:'so_kh_quay_lai',l:'C1. KH quay lại/năm',type:'number'},
+            {k:'biet_loi_nhuan',l:'C2. Biết lợi nhuận?',type:'select',opts:['','Không biết','Biết LN nhưng DSO>60 ngày','Biết LN>15% và DSO≤60 ngày','Khác']},
+            {k:'doi_tho',l:'C3. Đội thợ thi công',type:'select',opts:['','Không có đội','1-3 thợ rời theo vụ','≥2 thợ cơ hữu SLA ổn','Khác']},
+            {k:'chinh_sach_bh',l:'C4. Chính sách bảo hành',type:'select',opts:['','Đổ lỗi NCC','BH nhưng đòi hoàn NCC','Tự ký BH chịu CP','Khác']},
+            {k:'muc_quan_tam',l:'C5. Mức quan tâm hợp tác',type:'select',opts:['','Không muốn đổi','Quan tâm chưa rõ lợi ích','Có nỗi đau cụ thể muốn giải','Khác']},
+            {k:'ban_kinh_km',l:'C6. Bán kính KH gọi đến (km)',type:'number'},
+            {k:'quan_ly_data',l:'C7. Quản lý data KH',type:'select',opts:['','Không ghi chép','Ghi Zalo/Excel rải rác','Có hệ thống xuất được lịch sử','Khác']},
+            {k:'kiem_soat_mua_hang',l:'C8. Kiểm soát mua hàng',type:'select',opts:['','Theo chỉ định NCC','Có 2-3 NCC lựa chọn','Chủ động thương lượng giá','Khác']},
+            {k:'so_nguoi_gioi_thieu',l:'C9. Số người giới thiệu',type:'number'}
+        ];
+
+        function makeGroup(f) {
+            const cls = f.full ? 'form-group full' : 'form-group';
+            let input;
+            if (f.type === 'select') {
+                input = `<select id="e-${f.k}">${f.opts.map(o => `<option ${c[f.k]===o?'selected':''}>${o}</option>`).join('')}</select>`;
+            } else if (f.type === 'number') {
+                input = `<input type="number" id="e-${f.k}" value="${c[f.k]??''}">`;
+            } else {
+                input = `<input type="text" id="e-${f.k}" value="${c[f.k]??''}">`;
+            }
+            return `<div class="${cls}"><label>${f.l}</label>${input}</div>`;
+        }
+
+        let html = ``;
+        if (id > 0) {
+            const t = c.tier || '?';
+            const s = c.c_score ?? 0;
+            let badge = c.c_score !== null ?
+                `<span class="tier tier-${t}" style="font-size:13px; padding:4px 12px;">Tier ${t}</span>
+                 <span class="badge badge-ok" style="font-size:13px; padding:4px 12px; margin-left:6px">${s} Điểm</span>` :
+                `<span class="badge badge-review" style="font-size:13px; padding:4px 12px;">Chưa chấm điểm</span>`;
+            html += `
+            <div style="margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between;">
+                <h3 style="margin:0; font-size:17px">${c.ho_ten || c.ten_cong_ty || 'Khách Hàng'}</h3>
+                <div>${badge}</div>
+            </div>`;
+        }
+
+        html += `
+        <div class="tabs">
+            <div class="tab-header">
+                <button class="tab-btn active" onclick="switchTab(event, 'tab-chung')">Thông tin chung</button>
+                <button class="tab-btn" onclick="switchTab(event, 'tab-diem')">Chấm điểm AI</button>
+                </div>
+            <div id="tab-chung" class="tab-content active">
+                <div class="form-grid">${t1_fields.map(makeGroup).join('')}</div>
+                <div class="form-group full" style="margin-top:12px;">
+                    <label>Thông Tin Chi Tiết (Log làm việc)</label>
+                    <textarea id="e-thong_tin_chi_tiet" rows="10" style="width:100%; resize:vertical; font-size:13px">${c.thong_tin_chi_tiet ?? ''}</textarea>
+                </div>
+            </div>
+            <div id="tab-diem" class="tab-content">
+                <div class="form-grid">${t2_fields.map(makeGroup).join('')}</div>
+                
+                <h4 style="margin-top:20px; margin-bottom:12px; font-size:13px; font-weight:600; color:var(--text-secondary)">Chỉnh sửa điểm thủ công (Dành cho tùy chọn Khác)</h4>
+                <div style="display:flex; justify-content:space-between;">
+                    ${Array.from({length: 9}, (_, i) => {
+                        const k = `c${i+1}`;
+                        return `<div class="form-group" style="flex:1; margin-right:4px; min-width:0"><label style="margin-bottom:2px; font-size:11px">C${i+1}</label>
+                                <input type="number" id="e-${k}" value="${c[k]!==null && c[k]!==undefined ? c[k] : ''}" min="0" max="2" style="width:100%; font-weight:bold; color:var(--accent); text-align:center; padding:5px; font-size:12px"></div>`;
+                    }).join('')}
+                </div>
+            </div>
+            </div>
+        </div>`;
+
+        const footer = id > 0 ? `
+            <button class="btn btn-danger" onclick="deleteCustomer(${id})">Xóa</button>
+            <button class="btn" onclick="undoCustomer(${id})">↩ Hoàn tác</button>
+            <button class="btn btn-primary" onclick="saveCustomer(${id})">💾 Lưu</button>` :
+            `<button class="btn btn-primary" onclick="saveNewCustomer()">💾 Lưu</button>`;
+
+        openModal(id > 0 ? `Chi Tiết KH #${id}` : `Thêm KH mới`, html, footer);
+    }
+
+    async function saveCustomer(id) {
+        const fields = ['ho_ten','ten_cong_ty','sdt','loai_kh','tinh','xa','dia_chi',
+            'nguon','khu_vuc','thong_tin_chi_tiet','so_kh_quay_lai','biet_loi_nhuan','doi_tho',
+            'chinh_sach_bh','muc_quan_tam','ban_kinh_km','quan_ly_data','kiem_soat_mua_hang','so_nguoi_gioi_thieu','c1','c2','c3','c4','c5','c6','c7','c8','c9'];
+        const data = {};
+        fields.forEach(f => {
+            const el = document.getElementById('e-' + f);
+            if (el) data[f] = el.value || null;
+        });
+        ['so_kh_quay_lai','ban_kinh_km','so_nguoi_gioi_thieu','c1','c2','c3','c4','c5','c6','c7','c8','c9'].forEach(f => {
+            if (data[f] !== null && data[f] !== '') {
+                data[f] = parseInt(data[f]);
+                if (isNaN(data[f])) data[f] = null;
+            } else {
+                data[f] = null;
+            }
+        });
+
+        const res = await apiFetch(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+        showToast(res.message || 'Đã lưu');
+        closeModal();
+        loadReview();
+    }
+
+    async function deleteCustomer(id) {
+        if (!confirm('Xóa KH này?')) return;
+        const res = await apiFetch(`/api/customers/${id}`, { method: 'DELETE' });
+        showToast(res.message);
+        closeModal();
+        loadReview();
+    }
+
+    async function undoCustomer(id) {
+        const old = lastOldData[id];
+        if (!old) { showToast('Không có dữ liệu để hoàn tác', 'error'); return; }
+        const res = await apiFetch(`/api/customers/${id}/undo`, {
+            method: 'POST', body: JSON.stringify({ old_data: old })
+        });
+        showToast(res.message);
+        closeModal();
+        loadReview();
+    }
+
+    function showAddForm() {
+        editCustomer(0);
+    }
+
+    async function saveNewCustomer() {
+        const fields = ['ho_ten','ten_cong_ty','sdt','loai_kh','tinh','xa','dia_chi',
+            'nguon','khu_vuc','thong_tin_chi_tiet','so_kh_quay_lai','biet_loi_nhuan','doi_tho',
+            'chinh_sach_bh','muc_quan_tam','ban_kinh_km','quan_ly_data','kiem_soat_mua_hang','so_nguoi_gioi_thieu','c1','c2','c3','c4','c5','c6','c7','c8','c9'];
+        const data = {};
+        fields.forEach(f => {
+            const el = document.getElementById('e-' + f);
+            if (el) data[f] = el.value || null;
+        });
+        ['so_kh_quay_lai','ban_kinh_km','so_nguoi_gioi_thieu','c1','c2','c3','c4','c5','c6','c7','c8','c9'].forEach(f => {
+            if (data[f] !== null && data[f] !== '') {
+                data[f] = parseInt(data[f]);
+                if (isNaN(data[f])) data[f] = null;
+            } else {
+                data[f] = null;
+            }
+        });
+
+        const res = await apiFetch('/api/customers', { method: 'POST', body: JSON.stringify(data) });
+        showToast(res.message || 'Đã thêm');
+        closeModal();
+        loadReview();
+    }
+
+    
+function goPage(delta) { 
+    page += delta;
+    if (page < 1) page = totalPages || 1;
+    if (page > totalPages) page = 1;
+    loadReview(); 
+}
 loadReview();
+
+    function switchTab(evt, id) {
+        const tabs = document.querySelectorAll('#modal-body .tab-content');
+        tabs.forEach(t => t.classList.remove('active'));
+        const btns = document.querySelectorAll('#modal-body .tab-btn');
+        btns.forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        evt.currentTarget.classList.add('active');
+    }
 </script>
 {% endblock %}

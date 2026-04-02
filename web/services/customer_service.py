@@ -6,7 +6,7 @@ from services.log_service import add_log
 
 # 19 input columns from Excel
 INPUT_COLUMNS = [
-    'loai_kh', 'ten_cong_ty', 'ho_ten', 'sdt', 'tinh', 'xa',
+    'loai_kh', 'loai_kh_goc', 'ten_cong_ty', 'ho_ten', 'sdt', 'tinh', 'xa',
     'dia_chi', 'nguon', 'thong_tin_chi_tiet', 'khu_vuc',
     'so_kh_quay_lai', 'biet_loi_nhuan', 'doi_tho', 'chinh_sach_bh',
     'muc_quan_tam', 'ban_kinh_km', 'quan_ly_data', 'kiem_soat_mua_hang',
@@ -180,7 +180,7 @@ def update_customer(customer_id, new_data, operator='Dương'):
         new_data['sdt'] = normalize_sdt(new_data['sdt'])
 
     # Detect changes
-    for key in INPUT_COLUMNS:
+    for key in INPUT_COLUMNS + SCORE_COLUMNS:
         if key in new_data and str(new_data.get(key, '')) != str(old_data.get(key, '')):
             changes.append(f"{key}: '{old_data.get(key, '')}' → '{new_data[key]}'")
 
@@ -366,11 +366,20 @@ def get_dashboard_stats():
     total = conn.execute("SELECT COUNT(*) FROM customers WHERE is_deleted = 0").fetchone()[0]
 
     # By loai_kh
-    by_type = conn.execute(
+    by_type_rows = conn.execute(
         """SELECT loai_kh, COUNT(*) as cnt FROM customers
            WHERE is_deleted = 0 AND loai_kh IS NOT NULL AND loai_kh != ''
            GROUP BY loai_kh ORDER BY cnt DESC"""
     ).fetchall()
+    by_type = []
+    other_cnt = 0
+    for i, row in enumerate(by_type_rows):
+        if i < 9:
+            by_type.append(dict(row))
+        else:
+            other_cnt += row[1]
+    if other_cnt > 0:
+        by_type.append({'loai_kh': 'Khác (nhỏ lẻ)', 'cnt': other_cnt})
 
     # By khu_vuc
     by_region = conn.execute(
@@ -380,11 +389,15 @@ def get_dashboard_stats():
     ).fetchall()
 
     # By tier
-    by_tier = conn.execute(
+    by_tier_rows = conn.execute(
         """SELECT tier, COUNT(*) as cnt FROM customers
-           WHERE is_deleted = 0 AND tier IS NOT NULL AND tier != ''
+           WHERE is_deleted = 0
            GROUP BY tier ORDER BY tier"""
     ).fetchall()
+    by_tier = []
+    for r in by_tier_rows:
+        t = r['tier']
+        by_tier.append({'tier': t if t else 'Chưa xếp hạng', 'cnt': r['cnt']})
 
     # Top 10 tỉnh
     top_provinces = conn.execute(
@@ -416,7 +429,7 @@ def get_dashboard_stats():
 
     return {
         'total': total,
-        'by_type': [dict(r) for r in by_type],
+        'by_type': by_type,
         'by_region': [dict(r) for r in by_region],
         'by_tier': [dict(r) for r in by_tier],
         'top_provinces': [dict(r) for r in top_provinces],

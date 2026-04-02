@@ -39,7 +39,7 @@ async function loadDeleted() {
     body.innerHTML = d.customers.map(c => `<tr>
         <td>${c.ho_ten||''}</td>
         <td>${c.ten_cong_ty||''}</td>
-        <td class="cell-sdt">${c.sdt||''}</td>
+        <td class="cell-sdt">${formatPhone(c.sdt)}</td>
         <td>${c.loai_kh||''}</td>
         <td>${c.tinh||''}</td>
         <td>${c.tier?`<span class="tier tier-${c.tier}">${c.tier}</span>`:'-'}</td>
@@ -53,7 +53,12 @@ async function restoreKH(id) {
     loadDeleted();
 }
 
-function goPage(delta) { page = Math.max(1, Math.min(totalPages, page+delta)); loadDeleted(); }
+function goPage(delta) { 
+    page += delta;
+    if (page < 1) page = totalPages || 1;
+    if (page > totalPages) page = 1;
+    loadDeleted(); 
+}
 loadDeleted();
 </script>
 {% endblock %}

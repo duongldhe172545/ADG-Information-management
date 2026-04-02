@@ -1,0 +1,10 @@
+import sqlite3
+db = sqlite3.connect('d:/ADG-Dealer/web/data/app.db')
+print('Customers:', db.execute('SELECT count(*) FROM customers').fetchone()[0])
+db.execute('DELETE FROM customers')
+db.execute('DELETE FROM change_log')
+db.execute("DELETE FROM sqlite_sequence WHERE name='customers'")
+db.execute("DELETE FROM sqlite_sequence WHERE name='change_log'")
+db.commit()
+print('Wiped. Customers now:', db.execute('SELECT count(*) FROM customers').fetchone()[0])
+db.close()

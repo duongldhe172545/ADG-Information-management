@@ -57,7 +57,7 @@
 </div>
 
 <div class="table-container">
-    <table>
+    <table id="customers-table">
         <thead>
             <tr id="table-head"></tr>
         </thead>
@@ -80,6 +80,7 @@
         { key: '_check', label: '', w: 40 },
         { key: 'ma_kh', label: 'Mã KH', w: 90 },
         { key: 'loai_kh', label: 'Loại KH', dbKey: 'loai_kh', w: 110 },
+        { key: 'loai_kh_goc', label: 'KH Gốc', w: 110, cls: 'cell-muted' },
         { key: '_ten', label: 'Tên / Công ty', editable: false, w: 180 },
         { key: 'sdt', label: 'SĐT', cls: 'cell-sdt', dbKey: 'sdt', w: 150 },
         { key: 'tinh', label: 'Tỉnh', dbKey: 'tinh', w: 100 },
@@ -121,8 +122,9 @@
 
     async function loadFilterOptions() {
         const opts = await apiFetch('/api/filter-options');
+        const idMap = { loai_kh: 'f-loai', khu_vuc: 'f-khu-vuc', tinh: 'f-tinh', tier: 'f-tier', nguon: 'f-nguon' };
         for (const [key, values] of Object.entries(opts)) {
-            const sel = document.getElementById('f-' + key.replace('_', '-').replace('loai_kh', 'loai').replace('khu_vuc', 'khu-vuc'));
+            const sel = document.getElementById(idMap[key]);
             if (!sel) continue;
             const label = sel.options[0].text;
             sel.innerHTML = `<option value="">${label}</option>` +
@@ -131,6 +133,8 @@
     }
 
     async function loadData() {
+        const tBody = document.getElementById('table-body');
+        if (tBody) tBody.style.opacity = '0.4';
         const params = new URLSearchParams({
             search: document.getElementById('search').value,
             search_col: document.getElementById('search-col').value,
@@ -161,8 +165,9 @@
         }).join('');
 
         const body = document.getElementById('table-body');
+        body.style.opacity = '1';
         if (!rows.length) {
-            body.innerHTML = '<tr><td colspan="' + COLS.length + '" style="text-align:center;padding:40px;color:var(--text-muted)">Không có dữ liệu</td></tr>';
+            body.innerHTML = '<tr><td colspan="' + COLS.length + '" style="text-align:center;padding:40px;color:var(--text-muted);font-style:italic">Không có kết quả cần tìm</td></tr>';
             return;
         }
 
@@ -176,7 +181,10 @@
                 if (c.key === '_ten')
                     return `<td ondblclick="editCustomer(${r.id})" style="cursor:pointer;color:var(--accent);font-weight:500">${r.ho_ten || r.ten_cong_ty || ''}</td>`;
                 let val = r[c.key] ?? '';
-                if (c.key.match(/^c[1-9]$/)) {
+                if (c.key === 'sdt') {
+                    val = formatPhone(val);
+                }
+                else if (c.key.match(/^c[1-9]$/)) {
                     if (val === 0 || val === '0') val = `<span style="color:#cbd5e1">${val}</span>`;
                 }
                 else if (c.key === 'tier' && val)
@@ -185,11 +193,16 @@
                     val = val === 'needs_review' ? '<span class="badge badge-review">🟡 Review</span>' : '<span class="badge badge-ok">✅</span>';
                 else if (c.key === 'c_score' && val !== '')
                     val = `<strong>${val}</strong>`;
+                else if (c.key === 'thong_tin_chi_tiet' && val && val.length > 80) {
+                    const short = val.substring(0, 80).replace(/</g,'&lt;');
+                    val = `<span class="text-truncated">${short}… <a href="#" class="text-expand-link" onclick="event.preventDefault();event.stopPropagation();showTextDetail(${r.id},'${(r.ho_ten||r.ten_cong_ty||'').replace(/'/g,"\\'")}')">xem thêm</a></span>`;
+                }
                 
                 // Add inline edit on dblclick for editable cells
+                const rawValAttr = c.key === 'sdt' ? `data-raw="${String(r[c.key]??'').replace(/"/g,'&quot;')}"` : '';
                 const editAttr = c.dbKey ? `ondblclick="inlineEdit(this, ${r.id}, '${c.dbKey}')"` : '';
                 const wStyle = c.w ? `min-width:${c.w}px;` : '';
-                return `<td class="${c.cls || ''}" ${editAttr} style="${wStyle}">${val}</td>`;
+                return `<td class="${c.cls || ''}" ${editAttr} ${rawValAttr} style="${wStyle}">${val}</td>`;
             }).join('');
             return `<tr>${cells}</tr>`;
         }).join('');
@@ -198,7 +211,7 @@
     // ─── Inline Editing ─────────────────────────────────────────
     function inlineEdit(td, id, field) {
         if (td.classList.contains('editing')) return;
-        const oldVal = td.textContent.trim();
+        const oldVal = td.hasAttribute('data-raw') ? td.getAttribute('data-raw') : td.textContent.trim();
         td.classList.add('editing');
         const input = document.createElement('input');
         input.type = 'text';
@@ -339,23 +352,26 @@
             <div class="tab-header">
                 <button class="tab-btn active" onclick="switchTab(event, 'tab-chung')">Thông tin chung</button>
                 <button class="tab-btn" onclick="switchTab(event, 'tab-diem')">Chấm điểm AI</button>
-                <button class="tab-btn" onclick="switchTab(event, 'tab-note')">Ghi chú Sale</button>
-            </div>
+                </div>
             <div id="tab-chung" class="tab-content active">
                 <div class="form-grid">${t1_fields.map(makeGroup).join('')}</div>
-            </div>
-            <div id="tab-diem" class="tab-content">
-                <div class="form-grid">${t2_fields.map(makeGroup).join('')}</div>
-                ${c.c_score != null ? `
-                <div style="margin-top:16px; font-size:12px; color:var(--text-secondary); padding:10px; background:var(--bg-hover); border-radius:var(--radius-sm);">
-                    <strong>Chi tiết:</strong> C1=${c.c1} | C2=${c.c2} | C3=${c.c3} | C4=${c.c4} | C5=${c.c5} | C6=${c.c6} | C7=${c.c7} | C8=${c.c8} | C9=${c.c9}
-                </div>` : ''}
-            </div>
-            <div id="tab-note" class="tab-content">
-                <div class="form-group full">
+                <div class="form-group full" style="margin-top:12px;">
                     <label>Thông Tin Chi Tiết (Log làm việc)</label>
                     <textarea id="e-thong_tin_chi_tiet" rows="10" style="width:100%; resize:vertical; font-size:13px">${c.thong_tin_chi_tiet ?? ''}</textarea>
                 </div>
+            </div>
+            <div id="tab-diem" class="tab-content">
+                <div class="form-grid">${t2_fields.map(makeGroup).join('')}</div>
+                
+                <h4 style="margin-top:20px; margin-bottom:12px; font-size:13px; font-weight:600; color:var(--text-secondary)">Chỉnh sửa điểm thủ công (Dành cho tùy chọn Khác)</h4>
+                <div style="display:flex; justify-content:space-between;">
+                    ${Array.from({length: 9}, (_, i) => {
+                        const k = `c${i+1}`;
+                        return `<div class="form-group" style="flex:1; margin-right:4px; min-width:0"><label style="margin-bottom:2px; font-size:11px">C${i+1}</label>
+                                <input type="number" id="e-${k}" value="${c[k]!==null && c[k]!==undefined ? c[k] : ''}" min="0" max="2" style="width:100%; font-weight:bold; color:var(--accent); text-align:center; padding:5px; font-size:12px"></div>`;
+                    }).join('')}
+                </div>
+            </div>
             </div>
         </div>`;
 
@@ -371,14 +387,19 @@
     async function saveCustomer(id) {
         const fields = ['ho_ten','ten_cong_ty','sdt','loai_kh','tinh','xa','dia_chi',
             'nguon','khu_vuc','thong_tin_chi_tiet','so_kh_quay_lai','biet_loi_nhuan','doi_tho',
-            'chinh_sach_bh','muc_quan_tam','ban_kinh_km','quan_ly_data','kiem_soat_mua_hang','so_nguoi_gioi_thieu'];
+            'chinh_sach_bh','muc_quan_tam','ban_kinh_km','quan_ly_data','kiem_soat_mua_hang','so_nguoi_gioi_thieu','c1','c2','c3','c4','c5','c6','c7','c8','c9'];
         const data = {};
         fields.forEach(f => {
             const el = document.getElementById('e-' + f);
             if (el) data[f] = el.value || null;
         });
-        ['so_kh_quay_lai','ban_kinh_km','so_nguoi_gioi_thieu'].forEach(f => {
-            if (data[f]) data[f] = parseInt(data[f]) || null;
+        ['so_kh_quay_lai','ban_kinh_km','so_nguoi_gioi_thieu','c1','c2','c3','c4','c5','c6','c7','c8','c9'].forEach(f => {
+            if (data[f] !== null && data[f] !== '') {
+                data[f] = parseInt(data[f]);
+                if (isNaN(data[f])) data[f] = null;
+            } else {
+                data[f] = null;
+            }
         });
 
         const res = await apiFetch(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -413,14 +434,19 @@
     async function saveNewCustomer() {
         const fields = ['ho_ten','ten_cong_ty','sdt','loai_kh','tinh','xa','dia_chi',
             'nguon','khu_vuc','thong_tin_chi_tiet','so_kh_quay_lai','biet_loi_nhuan','doi_tho',
-            'chinh_sach_bh','muc_quan_tam','ban_kinh_km','quan_ly_data','kiem_soat_mua_hang','so_nguoi_gioi_thieu'];
+            'chinh_sach_bh','muc_quan_tam','ban_kinh_km','quan_ly_data','kiem_soat_mua_hang','so_nguoi_gioi_thieu','c1','c2','c3','c4','c5','c6','c7','c8','c9'];
         const data = {};
         fields.forEach(f => {
             const el = document.getElementById('e-' + f);
             if (el) data[f] = el.value || null;
         });
-        ['so_kh_quay_lai','ban_kinh_km','so_nguoi_gioi_thieu'].forEach(f => {
-            if (data[f]) data[f] = parseInt(data[f]) || null;
+        ['so_kh_quay_lai','ban_kinh_km','so_nguoi_gioi_thieu','c1','c2','c3','c4','c5','c6','c7','c8','c9'].forEach(f => {
+            if (data[f] !== null && data[f] !== '') {
+                data[f] = parseInt(data[f]);
+                if (isNaN(data[f])) data[f] = null;
+            } else {
+                data[f] = null;
+            }
         });
 
         const res = await apiFetch('/api/customers', { method: 'POST', body: JSON.stringify(data) });
@@ -440,7 +466,9 @@
     }
 
     function goPage(delta) {
-        currentPage = Math.max(1, Math.min(totalPages, currentPage + delta));
+        currentPage += delta;
+        if (currentPage < 1) currentPage = totalPages || 1;
+        if (currentPage > totalPages) currentPage = 1;
         loadData();
     }
 
@@ -496,8 +524,31 @@
         loadData();
     }
 
+    // ─── Xem chi tiết Thông tin (full text) ───────────────────
+    async function showTextDetail(id, name) {
+        const c = await apiFetch(`/api/customers/${id}`);
+        const text = (c.thong_tin_chi_tiet || '').replace(/\n/g, '<br>');
+        const html = `
+            <div style="max-height:60vh; overflow-y:auto; padding:8px 0;">
+                <div style="white-space:pre-wrap; line-height:1.7; font-size:14px; color:var(--text);">${text || '<em style="color:var(--text-muted)">Không có thông tin</em>'}</div>
+            </div>`;
+        const footer = `
+            <button class="btn" onclick="closeModal()">Đóng</button>
+            <button class="btn btn-primary" onclick="closeModal();editCustomer(${id})">✏️ Sửa</button>`;
+        openModal(`📋 Thông tin chi tiết — ${name || 'KH #' + id}`, html, footer);
+    }
+
     // Init
     loadFilterOptions();
     loadData();
+
+    function switchTab(evt, id) {
+        const tabs = document.querySelectorAll('#modal-body .tab-content');
+        tabs.forEach(t => t.classList.remove('active'));
+        const btns = document.querySelectorAll('#modal-body .tab-btn');
+        btns.forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        evt.currentTarget.classList.add('active');
+    }
 </script>
 {% endblock %}

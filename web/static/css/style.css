@@ -190,19 +190,32 @@ thead th {
     text-transform: uppercase;
     letter-spacing: .3px;
 }
-/* Sticky first 5 columns: checkbox, Mã KH, Loại KH, Tên/Công ty, SĐT */
-thead th:nth-child(1), thead th:nth-child(2), thead th:nth-child(3), thead th:nth-child(4), thead th:nth-child(5),
-tbody td:nth-child(1), tbody td:nth-child(2), tbody td:nth-child(3), tbody td:nth-child(4), tbody td:nth-child(5) {
+/* Sticky first 6 columns for customers table: checkbox, Mã KH, Loại KH, KH Gốc, Tên/Công ty, SĐT */
+#customers-table thead th:nth-child(1), #customers-table thead th:nth-child(2), #customers-table thead th:nth-child(3), #customers-table thead th:nth-child(4), #customers-table thead th:nth-child(5), #customers-table thead th:nth-child(6),
+#customers-table tbody td:nth-child(1), #customers-table tbody td:nth-child(2), #customers-table tbody td:nth-child(3), #customers-table tbody td:nth-child(4), #customers-table tbody td:nth-child(5), #customers-table tbody td:nth-child(6) {
     position: sticky;
     z-index: 5;
 }
-thead th:nth-child(1), tbody td:nth-child(1) { left: 0; min-width: 40px; max-width: 40px; }
-thead th:nth-child(2), tbody td:nth-child(2) { left: 40px; min-width: 90px; max-width: 90px; }
-thead th:nth-child(3), tbody td:nth-child(3) { left: 130px; min-width: 110px; max-width: 110px; }
-thead th:nth-child(4), tbody td:nth-child(4) { left: 240px; min-width: 180px; max-width: 180px; }
-thead th:nth-child(5), tbody td:nth-child(5) { left: 420px; min-width: 150px; max-width: 150px; box-shadow: 2px 0 4px rgba(0,0,0,.06); }
-thead th:nth-child(1), thead th:nth-child(2), thead th:nth-child(3), thead th:nth-child(4), thead th:nth-child(5) { background: #f0f2f8; z-index: 12; }
-tbody td:nth-child(1), tbody td:nth-child(2), tbody td:nth-child(3), tbody td:nth-child(4), tbody td:nth-child(5) { background: #fff; }
+#customers-table thead th:nth-child(1), #customers-table tbody td:nth-child(1) { left: 0; min-width: 40px; max-width: 40px; }
+#customers-table thead th:nth-child(2), #customers-table tbody td:nth-child(2) { left: 40px; min-width: 90px; max-width: 90px; }
+#customers-table thead th:nth-child(3), #customers-table tbody td:nth-child(3) { left: 130px; min-width: 110px; max-width: 110px; }
+#customers-table thead th:nth-child(4), #customers-table tbody td:nth-child(4) { left: 240px; min-width: 110px; max-width: 110px; }
+#customers-table thead th:nth-child(5), #customers-table tbody td:nth-child(5) { left: 350px; min-width: 180px; max-width: 180px; }
+#customers-table thead th:nth-child(6), #customers-table tbody td:nth-child(6) { left: 530px; min-width: 150px; max-width: 150px; box-shadow: 2px 0 4px rgba(0,0,0,.06); }
+#customers-table thead th:nth-child(1), #customers-table thead th:nth-child(2), #customers-table thead th:nth-child(3), #customers-table thead th:nth-child(4), #customers-table thead th:nth-child(5), #customers-table thead th:nth-child(6) { background: #f0f2f8; z-index: 12; }
+#customers-table tbody td:nth-child(1), #customers-table tbody td:nth-child(2), #customers-table tbody td:nth-child(3), #customers-table tbody td:nth-child(4), #customers-table tbody td:nth-child(5), #customers-table tbody td:nth-child(6) { background: #fff; }
+
+/* Sticky first 3 columns for review table: Họ tên, SĐT, Loại KH */
+#review-table thead th:nth-child(1), #review-table thead th:nth-child(2), #review-table thead th:nth-child(3),
+#review-table tbody td:nth-child(1), #review-table tbody td:nth-child(2), #review-table tbody td:nth-child(3) {
+    position: sticky;
+    z-index: 5;
+}
+#review-table thead th:nth-child(1), #review-table tbody td:nth-child(1) { left: 0; min-width: 180px; max-width: 180px; }
+#review-table thead th:nth-child(2), #review-table tbody td:nth-child(2) { left: 180px; min-width: 150px; max-width: 150px; }
+#review-table thead th:nth-child(3), #review-table tbody td:nth-child(3) { left: 330px; min-width: 130px; max-width: 130px; box-shadow: 2px 0 4px rgba(0,0,0,.06); }
+#review-table thead th:nth-child(1), #review-table thead th:nth-child(2), #review-table thead th:nth-child(3) { background: #f0f2f8; z-index: 12; }
+#review-table tbody td:nth-child(1), #review-table tbody td:nth-child(2), #review-table tbody td:nth-child(3) { background: #fff; }
 
 
 tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
@@ -213,6 +226,7 @@ tbody td {
     color: var(--text);
 }
 td.cell-sdt { font-family: 'Courier New', monospace; font-size: 12.5px; color: var(--accent); }
+td.cell-muted { font-style: italic; color: var(--text-muted); font-size: 12px; }
 td.cell-score { text-align: center; color: var(--text-secondary); font-weight: 500; font-size: 12px; }
 td input[type="checkbox"] { cursor: pointer; }
 
@@ -368,6 +382,14 @@ td.editing input, td.editing select {
 .weight-row label { flex: 1; font-size: 14px; }
 .weight-row input { width: 80px; text-align: center; }
 .weight-total { font-size: 15px; font-weight: 700; padding: 12px 0; }
+
+/* ─── Truncated text ─── */
+.text-truncated { color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.text-expand-link {
+    color: var(--accent); font-weight: 600; font-size: 11px;
+    text-decoration: none; white-space: nowrap;
+}
+.text-expand-link:hover { text-decoration: underline; }
 
 /* ─── Responsive ─── */
 @media (max-width: 900px) {

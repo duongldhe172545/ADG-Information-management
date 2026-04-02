@@ -1,11 +1,17 @@
 """Gemini AI service — use Google Gemini to score 'Khác' answers."""
 
-import google.generativeai as genai
+from google import genai
 from config import GEMINI_API_KEY
 from services.scoring_service import DROPDOWN_SCORES
 
 # Rubric descriptions per criteria
 RUBRIC = {
+    'c1': {
+        'name': 'Sở hữu khách hàng bền vững',
+        '0': 'Không biết / không nhớ tên khách cũ, không có danh sách',
+        '1': 'Nhớ theo quan hệ cá nhân, chưa có danh sách, dưới 50 khách quay lại',
+        '2': 'Có danh sách ≥50 house, % quay lại ≥30%/năm hoặc referral rõ ràng',
+    },
     'c2': {
         'name': 'P&L độc lập',
         '0': 'Không biết lãi/lỗ từng đơn hàng',
@@ -30,6 +36,12 @@ RUBRIC = {
         '1': 'Quan tâm nhưng chưa chỉ ra lợi ích cụ thể',
         '2': 'Chỉ rõ 1 nỗi đau muốn giải ngay (DSO/thợ/khách mới)',
     },
+    'c6': {
+        'name': 'Kiểm soát địa bàn vật lý',
+        '0': 'Không có vùng địa lý nhất định',
+        '1': 'Có quan hệ 1 khu vực nhưng không độc quyền',
+        '2': 'Khách <5km gọi họ đầu tiên không cần quảng cáo',
+    },
     'c7': {
         'name': 'Kỷ luật dữ liệu',
         '0': 'Không ghi gì, mọi thứ nằm trong đầu',
@@ -42,16 +54,25 @@ RUBRIC = {
         '1': 'Có 2-3 nguồn nhà cung cấp có thể lựa chọn',
         '2': 'Chủ động đặt hàng, có thể thương lượng giá/điều khoản',
     },
+    'c9': {
+        'name': 'Sức ảnh hưởng cộng đồng',
+        '0': 'Không ai trong nghề biết đến họ',
+        '1': 'Được vài người trong nghề biết và tin',
+        '2': 'Người khác giới thiệu thợ/khách cho họ, có thể kéo người mới vào',
+    },
 }
 
 # Mapping field name → criteria id
 FIELD_TO_CRITERIA = {
+    'so_kh_quay_lai': 'c1',
     'biet_loi_nhuan': 'c2',
     'doi_tho': 'c3',
     'chinh_sach_bh': 'c4',
     'muc_quan_tam': 'c5',
+    'ban_kinh_km': 'c6',
     'quan_ly_data': 'c7',
     'kiem_soat_mua_hang': 'c8',
+    'so_nguoi_gioi_thieu': 'c9',
 }
 
 
@@ -91,9 +112,11 @@ Dựa trên thông tin trên, hãy chấm điểm. Trả lời theo format:
 LÝ DO: [giải thích ngắn gọn]"""
 
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(prompt)
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt,
+        )
         text = response.text.strip()
 
         # Parse score from response

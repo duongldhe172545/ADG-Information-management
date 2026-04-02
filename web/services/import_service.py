@@ -193,9 +193,16 @@ def import_rows(rows, merge_strategy='smart', operator='Dương'):
     ai_scored = 0
     ai_records = []  # collect IDs for AI scoring after commit
 
+    # Load standard group labels from DB
+    nhom_labels_rows = conn.execute('SELECT key, label FROM nhom_kh_groups ORDER BY display_order').fetchall()
+    STANDARD_GROUPS = set(r['label'] for r in nhom_labels_rows)
+
     for row in rows:
         # Remove internal fields
         data = {k: v for k, v in row.items() if not k.startswith('_')}
+
+        # loai_kh_goc = raw Excel value (always preserved)
+        data['loai_kh_goc'] = data.get('loai_kh', '') or ''
 
         # Check for duplicate
         sdt = data.get('sdt', '')
@@ -223,6 +230,9 @@ def import_rows(rows, merge_strategy='smart', operator='Dương'):
                 for key in INPUT_COLUMNS:
                     new_val = data.get(key)
                     old_val = merged.get(key)
+                    # PROTECT loai_kh if already classified to a standard group
+                    if key == 'loai_kh' and str(old_val or '') in STANDARD_GROUPS:
+                        continue
                     if new_val is not None and str(new_val).strip() != '':
                         if str(new_val) != str(old_val or ''):
                             changes.append(f"{key}: '{old_val}' → '{new_val}'")
@@ -246,7 +256,8 @@ def import_rows(rows, merge_strategy='smart', operator='Dương'):
                         f"UPDATE customers SET {', '.join(set_parts)} WHERE id = ?",
                         values
                     )
-                    ai_records.append(duplicate['id'])
+                    if scores.get('review_status') == 'needs_review':
+                        ai_records.append(duplicate['id'])
                     updated += 1
                 else:
                     skipped += 1
@@ -266,7 +277,8 @@ def import_rows(rows, merge_strategy='smart', operator='Dương'):
                     f"UPDATE customers SET {', '.join(set_parts)} WHERE id = ?",
                     values
                 )
-                ai_records.append(duplicate['id'])
+                if data.get('review_status') == 'needs_review':
+                    ai_records.append(duplicate['id'])
                 updated += 1
         else:
             # Insert new
@@ -276,8 +288,12 @@ def import_rows(rows, merge_strategy='smart', operator='Dương'):
             columns = [c for c in INPUT_COLUMNS + ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7',
                                                     'c8', 'c9', 'c_score', 'tier', 'review_status']
                        if c in data]
+            
+            # Khắc phục triệt để lỗi is_deleted=NULL để check trùng xử lý được ngay trong cùng 1 vòng lặp
+            columns.append('is_deleted')
+            
             placeholders = ', '.join(['?'] * len(columns))
-            values = [data.get(c) for c in columns]
+            values = [data.get(c) for c in columns[:-1]] + [0] # 0 for is_deleted
 
             cursor = conn.execute(
                 f"INSERT INTO customers ({', '.join(columns)}) VALUES ({placeholders})",
@@ -285,7 +301,8 @@ def import_rows(rows, merge_strategy='smart', operator='Dương'):
             )
             inserted_id = cursor.lastrowid
             conn.execute("UPDATE customers SET ma_kh = printf('KH-%05d', ?) WHERE id = ?", (inserted_id, inserted_id))
-            ai_records.append(inserted_id)
+            if scores.get('review_status') == 'needs_review':
+                ai_records.append(inserted_id)
             inserted += 1
 
     conn.commit()

@@ -62,7 +62,12 @@ async function loadLog() {
     </tr>`).join('');
 }
 
-function goPage(delta) { page = Math.max(1, Math.min(totalPages, page+delta)); loadLog(); }
+function goPage(delta) { 
+    page += delta;
+    if (page < 1) page = totalPages || 1;
+    if (page > totalPages) page = 1;
+    loadLog(); 
+}
 loadLog();
 </script>
 {% endblock %}

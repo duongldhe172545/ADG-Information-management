@@ -55,7 +55,7 @@ def score_c1(value):
 
 
 def score_c6(value):
-    """C6: Bán kính KH gọi đến (km) → 0/1/2."""
+    """C6: Bán kính KH gọi đến (km) → 0/1/2. Nhỏ hơn = kiểm soát tốt hơn."""
     if value is None:
         return 0
     try:
@@ -64,10 +64,10 @@ def score_c6(value):
         return 0
     if v <= 0:
         return 0
-    elif v < 5:
-        return 1
+    elif v <= 5:
+        return 2  # Khách <5km gọi đầu tiên = kiểm soát địa bàn tốt
     else:
-        return 2
+        return 1  # Có khu vực nhưng rộng, không độc quyền
 
 
 def score_c9(value):
@@ -93,6 +93,12 @@ def score_dropdown(field_name, value):
     if value == 'Khác':
         return None  # needs review or AI
     mapping = DROPDOWN_SCORES.get(field_name, {})
+    
+    # Normalize unicode signs to standard ascii to handle mismatch from frontend/excel vs backend
+    norm_val = value.replace('<=', '≤').replace('>=', '≥')
+    if norm_val in mapping:
+        return mapping[norm_val]
+        
     return mapping.get(value, 0)
 
 
@@ -121,7 +127,8 @@ def compute_scores(customer_data):
                       ('c7', 'quan_ly_data'), ('c8', 'kiem_soat_mua_hang')]:
         val = score_dropdown(field, customer_data.get(field))
         if val is None:
-            scores[ci] = 0
+            existing = customer_data.get(ci)
+            scores[ci] = int(existing) if existing is not None else 0
             needs_review = True
         else:
             scores[ci] = val
@@ -143,15 +150,24 @@ def compute_scores(customer_data):
 
     scores['c_score'] = round(raw * 50)
 
+    # Check if they have ANY input scoring data
+    input_fields = ['so_kh_quay_lai', 'biet_loi_nhuan', 'doi_tho', 'chinh_sach_bh', 
+                    'muc_quan_tam', 'ban_kinh_km', 'quan_ly_data', 'kiem_soat_mua_hang', 'so_nguoi_gioi_thieu']
+    has_data = any(customer_data.get(f) not in (None, '') for f in input_fields)
+
     # Assign tier
-    if scores['c_score'] >= 75:
-        scores['tier'] = 'A'
-    elif scores['c_score'] >= 50:
-        scores['tier'] = 'B'
-    elif scores['c_score'] >= 30:
-        scores['tier'] = 'C'
+    if not has_data:
+        scores['tier'] = ''
+        scores['c_score'] = 0
     else:
-        scores['tier'] = 'D'
+        if scores['c_score'] >= 75:
+            scores['tier'] = 'A'
+        elif scores['c_score'] >= 50:
+            scores['tier'] = 'B'
+        elif scores['c_score'] >= 30:
+            scores['tier'] = 'C'
+        else:
+            scores['tier'] = 'D'
 
     scores['review_status'] = 'needs_review' if needs_review else 'ok'
     return scores

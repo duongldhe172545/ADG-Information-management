@@ -37,8 +37,8 @@ async function loadDashboard() {
         new Chart(document.getElementById('chart-tier'), {
             type:'doughnut',
             data:{
-                labels:d.by_tier.map(t=>'Tier '+t.tier),
-                datasets:[{data:d.by_tier.map(t=>t.cnt),backgroundColor:d.by_tier.map(t=>TIER_COLORS[t.tier]||'#666')}]
+                labels:d.by_tier.map(t=> (t.tier==='Chưa xếp hạng' ? t.tier : 'Tier '+t.tier) + ` (${t.cnt})`),
+                datasets:[{data:d.by_tier.map(t=>t.cnt),backgroundColor:d.by_tier.map(t=>TIER_COLORS[t.tier]||'#cbd5e1')}]
             },
             options:{plugins:{legend:{position:'bottom',labels:{color:'#9aa0b0'}}}}
         });
@@ -61,7 +61,7 @@ async function loadDashboard() {
         new Chart(document.getElementById('chart-type'), {
             type:'doughnut',
             data:{
-                labels:d.by_type.map(t=>t.loai_kh),
+                labels:d.by_type.map(t=>`${t.loai_kh} (${t.cnt})`),
                 datasets:[{data:d.by_type.map(t=>t.cnt),backgroundColor:COLORS.slice(0,d.by_type.length)}]
             },
             options:{plugins:{legend:{position:'bottom',labels:{color:'#9aa0b0',font:{size:11}}}}}

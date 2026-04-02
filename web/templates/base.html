@@ -19,6 +19,8 @@
                 <span class="nav-icon">👥</span> Khách hàng</a></li>
             <li><a href="/import" class="{% if request.path == '/import' %}active{% endif %}">
                 <span class="nav-icon">📥</span> Import Excel</a></li>
+            <li><a href="/mapping" class="{% if request.path == '/mapping' %}active{% endif %}">
+                <span class="nav-icon">🏷️</span> Phân loại KH</a></li>
             <li><a href="/review" class="{% if request.path == '/review' %}active{% endif %}">
                 <span class="nav-icon">🔍</span> Cần review</a></li>
             <li><a href="/dashboard" class="{% if request.path == '/dashboard' %}active{% endif %}">
@@ -76,6 +78,19 @@
             ...opts
         });
         return res.json();
+    }
+    function formatPhone(sdt) {
+        if (!sdt) return '';
+        return String(sdt).split(/[\/,-]/).map(p => {
+            let phone = p.trim();
+            let raw = phone.replace(/[\s\.\-]/g, '');
+            if (raw.length === 10 && raw.startsWith('0')) {
+                phone = raw.replace(/(\d{4})(\d{3})(\d{3})/, '$1.$2.$3');
+            } else if (raw.length === 11 && raw.startsWith('0')) {
+                phone = raw.replace(/(\d{4})(\d{3})(\d{4})/, '$1.$2.$3');
+            }
+            return `<div>${phone}</div>`;
+        }).join('');
     }
     </script>
     {% block scripts %}{% endblock %}
