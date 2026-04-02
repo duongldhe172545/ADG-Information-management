@@ -197,6 +197,18 @@ def import_rows(rows, merge_strategy='smart', operator='Dương'):
     nhom_labels_rows = conn.execute('SELECT key, label FROM nhom_kh_groups ORDER BY display_order').fetchall()
     STANDARD_GROUPS = set(r['label'] for r in nhom_labels_rows)
 
+    # Cache ALL existing phones into memory — O(1) lookup speeds up 6000+ row imports from 30+ seconds to < 1s
+    existing_all = conn.execute("SELECT * FROM customers WHERE is_deleted = 0").fetchall()
+    phone_index = {}
+    for r in existing_all:
+        d = dict(r)
+        _sdt = d.get('sdt', '')
+        if _sdt:
+            for p in extract_all_phones(_sdt):
+                if p and len(p) >= 8:
+                    phone_index[p] = d
+
+
     for row in rows:
         # Remove internal fields
         data = {k: v for k, v in row.items() if not k.startswith('_')}
@@ -211,12 +223,8 @@ def import_rows(rows, merge_strategy='smart', operator='Dương'):
             phones = extract_all_phones(sdt)
             for phone in phones:
                 if phone and len(phone) >= 8:  # PREVENT bug: '0' matching everything
-                    existing = conn.execute(
-                        "SELECT * FROM customers WHERE is_deleted = 0 AND sdt LIKE ?",
-                        (f'%{phone}%',)
-                    ).fetchone()
-                    if existing:
-                        duplicate = dict(existing)
+                    if phone in phone_index:
+                        duplicate = dict(phone_index[phone])
                         break
 
         if duplicate:
@@ -256,6 +264,13 @@ def import_rows(rows, merge_strategy='smart', operator='Dương'):
                         f"UPDATE customers SET {', '.join(set_parts)} WHERE id = ?",
                         values
                     )
+                    
+                    merged['id'] = duplicate['id']
+                    if sdt:
+                        for p in extract_all_phones(sdt):
+                            if len(p) >= 8:
+                                phone_index[p] = merged
+
                     if scores.get('review_status') == 'needs_review':
                         ai_records.append(duplicate['id'])
                     updated += 1
@@ -277,6 +292,13 @@ def import_rows(rows, merge_strategy='smart', operator='Dương'):
                     f"UPDATE customers SET {', '.join(set_parts)} WHERE id = ?",
                     values
                 )
+                
+                data['id'] = duplicate['id']
+                if sdt:
+                    for p in extract_all_phones(sdt):
+                        if len(p) >= 8:
+                            phone_index[p] = data
+                            
                 if data.get('review_status') == 'needs_review':
                     ai_records.append(duplicate['id'])
                 updated += 1
@@ -299,10 +321,16 @@ def import_rows(rows, merge_strategy='smart', operator='Dương'):
                 f"INSERT INTO customers ({', '.join(columns)}) VALUES ({placeholders})",
                 values
             )
-            inserted_id = cursor.lastrowid
-            conn.execute("UPDATE customers SET ma_kh = printf('KH-%05d', ?) WHERE id = ?", (inserted_id, inserted_id))
+            
+            data['id'] = cursor.lastrowid
+            if sdt:
+                for p in extract_all_phones(sdt):
+                    if len(p) >= 8:
+                        phone_index[p] = data
+            
+            conn.execute("UPDATE customers SET ma_kh = printf('KH-%05d', ?) WHERE id = ?", (data['id'], data['id']))
             if scores.get('review_status') == 'needs_review':
-                ai_records.append(inserted_id)
+                ai_records.append(data['id'])
             inserted += 1
 
     conn.commit()
